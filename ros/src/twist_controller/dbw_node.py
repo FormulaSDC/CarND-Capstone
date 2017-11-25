@@ -71,6 +71,10 @@ class DBWNode(object):
         self.dbw_enabled = False
         rospy.Subscriber('/vehicle/dbw_enabled', Bool, self.dbw_enabled_cb)
 
+        self.current_linear_velocity = None
+        self.current_angular_velocity = None
+        self.target_linear_velocity = None
+        self.target_angular_velocity = None
         self.loop()
 
     # Calculate the throttle, brake, and steering.  If not in manual mode, i.e. if
@@ -82,18 +86,28 @@ class DBWNode(object):
             # Only proceed if in drive by wire mode
             if self.dbw_enabled is True:
 
-               # Calculate the throttle, brake, and steering to apply... this controller
-               # currently only works at a low (<20 mph) constant speed
-               throttle, brake, steer = self.controller.control( self.target_linear_velocity,
-                                                                 self.target_angular_velocity,
-                                                                 self.current_linear_velocity,
-                                                                 self.current_angular_velocity )
+                if (self.current_linear_velocity is None) \
+                    or (self.current_angular_velocity is None) \
+                    or (self.target_linear_velocity) is None \
+                    or (self.target_angular_velocity) is None:
+                    continue
 
-               # Echo back to the log what was decided
-               rospy.loginfo("throttle= %s, brake= %s, steer= %s" , throttle, brake, steer )
+                # Calculate the throttle, brake, and steering to apply... this controller
+                # currently only works at a low (<20 mph) constant speed
+                throttle, brake, steer = \
+                    self.controller.control(self.target_linear_velocity,
+                                            self.target_angular_velocity,
+                                            self.current_linear_velocity,
+                                            self.current_angular_velocity)
 
-               # Publish the throttle, brake, and steering inputs
-               self.publish(throttle, brake, steer)
+                # Echo back to the log what was decided
+                # rospy.loginfo("throttle= %s, brake= %s, steer= %s" , throttle, brake, steer )
+
+                # Publish the throttle, brake, and steering inputs
+                self.publish(throttle, brake, steer)
+
+            else :
+                self.controller.reset()
 
             # Wait a little before publishing the next command
             rate.sleep()
@@ -121,18 +135,18 @@ class DBWNode(object):
     def twist_cb(self,msg):
         self.target_linear_velocity = msg.twist.linear.x
         self.target_angular_velocity = msg.twist.angular.z
-        rospy.loginfo("target velocities: linear = %s, angular= %s" , self.target_linear_velocity, self.target_angular_velocity )
+        #rospy.loginfo("target velocities: linear = %s, angular= %s" , self.target_linear_velocity, self.target_angular_velocity )
 
     # Callback function for current_velocity
     def current_velocity_cb(self,msg):
         self.current_linear_velocity = msg.twist.linear.x # meters per second
         self.current_angular_velocity = msg.twist.angular.z
-        rospy.loginfo("current velocities: linear = %s, angular= %s" , self.current_linear_velocity, self.current_angular_velocity )
+        #rospy.loginfo("current velocities: linear = %s, angular= %s" , self.current_linear_velocity, self.current_angular_velocity )
 
     # Callback function for current_velocity
     def dbw_enabled_cb(self,msg):
         self.dbw_enabled = msg.data
-        rospy.loginfo("dbw_enabled = %s" , self.dbw_enabled )
+        #rospy.loginfo("dbw_enabled = %s" , self.dbw_enabled )
 
 if __name__ == '__main__':
     DBWNode()

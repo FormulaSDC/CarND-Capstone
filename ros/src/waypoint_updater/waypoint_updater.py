@@ -31,7 +31,7 @@ class WaypointUpdater(object):
     def __init__(self):
 
         rospy.init_node('waypoint_updater')
-        #rospy.loginfo('WaypointUpdater: __init__ starting')
+        # rospy.loginfo('WaypointUpdater: __init__ starting')
 
         # Initialize variable
         self._base_waypoints = None
@@ -59,7 +59,7 @@ class WaypointUpdater(object):
 
         # TODO: Add other member variables you need below
 
-        #rospy.spin()
+        # rospy.spin()
         self.loop()
 
 
@@ -87,14 +87,13 @@ class WaypointUpdater(object):
             rospy.loginfo("nearest waypoint index : %s of %s", index, self.n_base_wps)
             last_wp = index + LOOKAHEAD_WPS - 1  # Last waypoint
 
-            if (index + LOOKAHEAD_WPS > self.n_base_wps):
+            if index + LOOKAHEAD_WPS > self.n_base_wps:
                 # https://stackoverflow.com/questions/8940737/cycle-through-list-starting-at-a-certain-element
                 cycled = cycle(self._base_waypoints)
                 sliced = islice(cycled, index, last_wp+1)
                 base_wps = list(sliced)
             else:
-                base_wps = self._base_waypoints[index : last_wp+1]
-
+                base_wps = self._base_waypoints[index: last_wp+1]
 
             for i, base_wp in enumerate(base_wps):
                 # Copy in the relevant waypoint
@@ -108,7 +107,7 @@ class WaypointUpdater(object):
             # Set velocities based on state...
             # rospy.loginfo("car_state= %s", self.car_state)
 
-            ## Set velocity in the "go" state -- other states will be added later
+            # # Set velocity in the "go" state -- other states will be added later
             # if self.car_state == "go":
             #
             #     # Accelerate to target velocity -- right now this is just a constant, but once the DBW module
@@ -124,31 +123,29 @@ class WaypointUpdater(object):
             rate.sleep()
 
     def pose_cb(self, msg):
-        #rospy.loginfo('WaypointUpdater: pose_cb starting')
+        # rospy.loginfo('WaypointUpdater: pose_cb starting')
 
         # Get the current position
         self._current_pose = msg.pose
-        #rospy.loginfo("_current_pose: %s", self._current_pose)
-
+        # rospy.loginfo("_current_pose: %s", self._current_pose)
 
     # Gets the waypoints
     def waypoints_cb(self, waypoints):
-        #rospy.loginfo('WaypointUpdater: waypoints_cb starting')
+        #r ospy.loginfo('WaypointUpdater: waypoints_cb starting')
         self._base_waypoints = waypoints.waypoints
         self.n_base_wps = len(self._base_waypoints)
 
     # Callback function for current_velocity
     def current_velocity_cb(self, msg):
-        self.current_linear_velocity = msg.twist.linear.x # meters per second
+        self.current_linear_velocity = msg.twist.linear.x  # m/s
 
     # Find the nearest waypoint
     def find_nearest(self, curr_pose, base_wps):
-
         # Get the current x, y positions
         curr_x = curr_pose.position.x
         curr_y = curr_pose.position.y
         curr_yaw = self.get_yaw(curr_pose.orientation)
-        #rospy.loginfo("current position (x,y) = (%s,%s)" , curr_x, curr_y)
+        # rospy.loginfo("current position (x,y) = (%s,%s)" , curr_x, curr_y)
 
         # Find the nearest waypoint
         nearest_dist = 9999
@@ -168,7 +165,6 @@ class WaypointUpdater(object):
             nearest_idx += 1
         return nearest_idx % self.n_base_wps
 
-
     def get_yaw(self, orientation):
         quaternion = (orientation.x,
                       orientation.y,
@@ -178,13 +174,14 @@ class WaypointUpdater(object):
         return euler[2]
 
     # Euclidean distance.  TODO: Find a common place to put this function
-    def dist( self, x1, x2, y1, y2 ):
-        dist = math.sqrt( (x1-x2)**2 + (y1-y2)**2 )
+    def dist(self, x1, x2, y1, y2):
+        dist = math.sqrt((x1-x2)**2 + (y1-y2)**2)
         return dist
 
     def traffic_cb(self, msg):
         self.red_light_wp = msg.data
-        #rospy.loginfo("waypoint_updater:traffic_cb says there is a red light at waypoint %s" , self.red_light_wp )
+        # rospy.loginfo("waypoint_updater:traffic_cb says there is a
+        # red light at waypoint %s" , self.red_light_wp )
 
     def obstacle_cb(self, msg):
         # TODO: Callback for /obstacle_waypoint message. We will implement it later

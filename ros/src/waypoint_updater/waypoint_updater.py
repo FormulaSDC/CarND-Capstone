@@ -45,7 +45,7 @@ class WaypointUpdater(object):
         rospy.Subscriber('/current_pose', PoseStamped, self.pose_cb)
 
         # Current velocity
-        rospy.Subscriber('/current_velocity', TwistStamped , self.current_velocity_cb)
+        #rospy.Subscriber('/current_velocity', TwistStamped , self.current_velocity_cb)
 
         # Base waypoints: are for the entire track and are only published once
         rospy.Subscriber('/base_waypoints', Lane, self.waypoints_cb)
@@ -64,14 +64,14 @@ class WaypointUpdater(object):
 
 
     def loop(self):
-        rate = rospy.Rate(10) # 50Hz
+        rate = rospy.Rate(20) # 25 Hz
         while not rospy.is_shutdown():
             if (self._base_waypoints is None) or (self._current_pose is None):
                 continue
 
             # Find the nearest waypoint
             self._nearest = self.find_nearest(self._current_pose, self._base_waypoints)
-            # rospy.loginfo("nearest waypoint index = %s", self._nearest)
+            rospy.loginfo("nearest waypoint index = %s", self._nearest)
 
             # Create the lane object to be published as final_waypoints
             myLane = Lane()
@@ -84,7 +84,7 @@ class WaypointUpdater(object):
             # Create the waypoints locations
             myLane.waypoints = []
             index = self._nearest
-            rospy.loginfo("nearest waypoint index : %s of %s", index, self.n_base_wps)
+            #rospy.loginfo("nearest waypoint index : %s of %s", index, self.n_base_wps)
             last_wp = index + LOOKAHEAD_WPS - 1  # Last waypoint
 
             if index + LOOKAHEAD_WPS > self.n_base_wps:

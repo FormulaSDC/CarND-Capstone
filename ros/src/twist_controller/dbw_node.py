@@ -47,7 +47,6 @@ class DBWNode(object):
         steer_ratio = rospy.get_param('~steer_ratio', 14.8)
         max_lat_accel = rospy.get_param('~max_lat_accel', 3.)
         max_steer_angle = rospy.get_param('~max_steer_angle', 8.)
-        min_speed = 10.0 # What is this?  What units should be used?  Setting of 10.0 producing sensible results...
 
         self.steer_pub = rospy.Publisher('/vehicle/steering_cmd',
                                          SteeringCmd, queue_size=1)
@@ -57,7 +56,9 @@ class DBWNode(object):
                                          BrakeCmd, queue_size=1)
 
         # Create instance of Controller class
-        self.controller = Controller(wheel_base, steer_ratio, min_speed, max_lat_accel, max_steer_angle)
+        self.controller = Controller(wheel_base, steer_ratio, max_lat_accel,
+                                     max_steer_angle, vehicle_mass, wheel_radius,
+                                     fuel_capacity, accel_limit, decel_limit)
 
         # Subscriptions...
 
@@ -80,34 +81,30 @@ class DBWNode(object):
     # Calculate the throttle, brake, and steering.  If not in manual mode, i.e. if
     # drive by wire is enabled, then publish
     def loop(self):
-        rate = rospy.Rate(50) # 50Hz
+        rate = rospy.Rate(30) # 50Hz
         while not rospy.is_shutdown():
 
-            # Only proceed if in drive by wire mode
-            if self.dbw_enabled is True:
+            if (self.current_linear_velocity is None) \
+                or (self.current_angular_velocity is None) \
+                or (self.target_linear_velocity) is None \
+                or (self.target_angular_velocity) is None:
+                continue
 
-                if (self.current_linear_velocity is None) \
-                    or (self.current_angular_velocity is None) \
-                    or (self.target_linear_velocity) is None \
-                    or (self.target_angular_velocity) is None:
-                    continue
+            # Calculate the throttle, brake, and steering to apply... this controller
+            # currently only works at a low (<20 mph) constant speed
+            throttle, brake, steer = \
+                self.controller.control(self.target_linear_velocity,
+                                        self.target_angular_velocity,
+                                        self.current_linear_velocity,
+                                        self.current_angular_velocity,
+                                        self.dbw_enabled)
 
-                # Calculate the throttle, brake, and steering to apply... this controller
-                # currently only works at a low (<20 mph) constant speed
-                throttle, brake, steer = \
-                    self.controller.control(self.target_linear_velocity,
-                                            self.target_angular_velocity,
-                                            self.current_linear_velocity,
-                                            self.current_angular_velocity)
+            # Echo back to the log what was decided
+            # rospy.loginfo("throttle= %s, brake= %s, steer= %s" , throttle, brake, steer )
 
-                # Echo back to the log what was decided
-                # rospy.loginfo("throttle= %s, brake= %s, steer= %s" , throttle, brake, steer )
-
-                # Publish the throttle, brake, and steering inputs
+            if self.dbw_enabled:
+                # Publish the throttle, brake, and steering inputs if dbw enabled
                 self.publish(throttle, brake, steer)
-
-            else :
-                self.controller.reset()
 
             # Wait a little before publishing the next command
             rate.sleep()

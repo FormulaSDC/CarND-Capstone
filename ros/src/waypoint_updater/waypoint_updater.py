@@ -6,6 +6,7 @@ from styx_msgs.msg import Lane, Waypoint
 from std_msgs.msg import Int32
 
 import math
+import copy
 
 '''
 This node will publish waypoints from the car's current position to some `x` distance ahead.
@@ -24,17 +25,22 @@ TODO (for Yousuf and Aaron): Stopline location for each traffic light.
 
 LOOKAHEAD_WPS = 200 # Number of waypoints we will publish. You can change this number
 
-
 class WaypointUpdater(object):
     def __init__(self):
 
         rospy.init_node('waypoint_updater')
         rospy.loginfo('WaypointUpdater: __init__ starting')
 
-        # Initialize variable
+        # Initialize local variables
+        self._base_waypoints = None
+        self._current_pose = None
         self.red_light_wp = -1
         self.current_linear_velocity = -1
         self.car_state = "go" # Possible states will be: go, stop, idle
+        self.go_mode = "gradual" # Choices are "constant" and "gradual"
+        self.stop_point = None # The waypoint by which the car needs to stop
+        self.target_velocity_mph = 50 # Target velocity in miles per hour
+        self.max_accelleration = 1 # The maximum accelleration (velocity unit increased per distance unit)
 
         # Current position:
         rospy.Subscriber('/current_pose', PoseStamped, self.pose_cb)
@@ -54,7 +60,159 @@ class WaypointUpdater(object):
 
         # TODO: Add other member variables you need below
 
-        rospy.spin()
+        #rospy.spin()
+        self.loop()
+
+    # Looping instead of spinning
+    def loop(self):
+        rate = rospy.Rate(10)
+        rospy.loginfo("starting loop with car_state=%s and publishing rate=%s ", self.car_state, rate)
+
+        # Loop when certain conditions are met
+        while not rospy.is_shutdown():
+            if (self._base_waypoints is None) or (self._current_pose is None):
+                continue
+
+            ####################################################################
+            #  PART 0: SETUP
+            ####################################################################
+
+            # Find the nearest waypoint
+            self._nearest = self.find_nearest(self._current_pose , self._base_waypoints)
+            rospy.loginfo("nearest waypoint index = %s", self._nearest)
+
+            # Create the lane object to be published as final_waypoints
+            myLane = Lane()
+
+            # Create its header
+            myLane.header.seq = 0
+            myLane.header.stamp = rospy.Time(0)
+            myLane.header.frame_id = '/world'
+
+            # Initialize variables
+            wp = [] # List of the waypoint indices corresponding to i
+            myLane.waypoints = []
+
+            # Loop through the waypoints to create/update
+            for i in range(LOOKAHEAD_WPS):
+
+                # Populate the waypoint list
+                if i==0:
+                  # The first waypoint is just the nearest
+                  index = self._nearest
+                else:
+                  # Then we increment from there
+                  index = self.next_waypoint( index, len(self._base_waypoints) )
+                wp.append(index)
+
+                # Copy in the relevant waypoint
+                myLane.waypoints.append(self._base_waypoints[index])
+
+                # But modify the sequence number to contain the index number... will use later in tl_detector.py
+                myLane.waypoints[i].pose.header.seq = index
+
+            ####################################################################
+            #  PART 1: FINITE STATE MACHINE -- SET THE STATE
+            ####################################################################
+
+            # Part 1-A: Determine when to stop
+            # If there is a red light...
+            #if self.red_light_wp > -1:
+            #    # Check the decelleration needed to stop for it
+            #    totaldist = self.distance(self._base_waypoints, wp[0],self.red_light_wp)
+            #    if totaldist>0: decelleration = self.current_linear_velocity / totaldist
+            #    else: decelleration = 0
+            #    rospy.loginfo("There is a red light ahead: totaldist=%s, decelleration=%s",totaldist,decelleration)
+            #    # If the decelleration exceeds a threshold then begin stopping
+            #    if decelleration > 0.5:
+            #      self.car_state = "stop"
+            #      self.stop_point=self.red_light_wp
+
+            ## Part 2-A: Determine when we are in idle
+            #if (self.car_state=="stop") and (self.current_linear_velocity <= 0):
+            #  self.car_state = "idle"
+
+            rospy.loginfo("car_state= %s",self.car_state)
+
+            ####################################################################
+            #  PART 2: SET VELOCITY BASED ON THE STATE
+            ####################################################################
+
+            ## Set velocity in the "go" state
+            if self.car_state == "go":
+
+                # The desired target velocity in meters per second
+                # https://duckduckgo.com/?q=how+many+meters+per+second+is+1+miles+per+hour&t=canonical&ia=answer
+                target_velocity = self.target_velocity_mph * 0.44704
+
+                # Constant mode
+                if self.go_mode == "constant":
+
+                    # Set velocity to a constant
+                    for i in range(LOOKAHEAD_WPS):
+                        self.set_waypoint_velocity(myLane.waypoints, i, target_velocity)
+
+                # Gradual mode: increment the velocity by self.max_accelleration until it exceeds the target speed
+                elif self.go_mode == "gradual":
+
+                    # Initialize the velocity with the current velocity
+                    rospy.loginfo("current velocity is %s", self.current_linear_velocity)
+                    new_velocity = self.current_linear_velocity
+
+                    # Loop
+                    for i in range(LOOKAHEAD_WPS):
+
+                       # Calculate distance between successive waypoints
+                       if i<LOOKAHEAD_WPS-1:
+                         dist = self.distance(self._base_waypoints, wp[i],wp[i+1])
+
+                       # Calculate the new velocity
+                       new_velocity += self.max_accelleration * dist
+                       if new_velocity < 1.0: new_velocity = 1.0
+                       elif new_velocity > target_velocity: new_velocity = target_velocity
+
+                       # Set the new velocity
+                       self.set_waypoint_velocity(myLane.waypoints, i, new_velocity)
+
+                       # Logging
+                       rospy.loginfo("velocity of waypoint %s (i=%s) set to %s", wp[i], i, new_velocity)
+
+            ## Set velocity in the "stop" state
+            elif self.car_state == "stop":
+                 # Calculate distance to the stop point
+                 totaldist = self.distance(self._base_waypoints, wp[0],self.stop_point)
+                 # Calculate decelleration needed, i.e. current velocity over stopping distance
+                 if totaldist>0: decelleration = self.current_linear_velocity / totaldist
+                 else: decelleration = 0
+                 rospy.loginfo("decelleration=%s",decelleration)
+                 # Initialize flag indicating when the velocity must be zero
+                 must_be_zero = 0
+                 if decelleration <= 0: must_be_zero=1
+                 # Loop and define the velocity at each point
+                 for i in range(LOOKAHEAD_WPS):
+                       # Check if we have reached the stop point
+                       if wp[i] == self.stop_point: must_be_zero=1
+                       # Calculate distance between successive waypoints
+                       if i<LOOKAHEAD_WPS-1:
+                         dist = self.distance(self._base_waypoints, wp[i],wp[i+1])
+                       # Calculate the new velocity
+                       if must_be_zero==1: new_velocity=0.0
+                       elif i==0: new_velocity=self.current_linear_velocity
+                       else: new_velocity -= decelleration * dist
+                       # Floor the velocity at zero
+                       if new_velocity <= 0: new_velocity=0.0
+                       # Set the new velocity
+                       self.set_waypoint_velocity(myLane.waypoints, i, new_velocity)
+                       # Logging
+                       rospy.loginfo("velocity of waypoint %s (i=%s) set to %s", wp[i], i, new_velocity)
+
+            ## Set velocity in the "idle" state
+            elif self.car_state == "idle":
+                for i in range(LOOKAHEAD_WPS):
+                    self.set_waypoint_velocity(myLane.waypoints, i, 0.0)
+
+            # Finally, publish the new velocities
+            self.final_waypoints_pub.publish(myLane)
 
     def pose_cb(self, msg):
         #rospy.loginfo('WaypointUpdater: pose_cb starting')
@@ -62,52 +220,6 @@ class WaypointUpdater(object):
         # Get the current position
         self._current_pose = msg.pose
         #rospy.loginfo("_current_pose: %s", self._current_pose)
-
-        # Find the nearest waypoint
-        self._nearest = self.find_nearest(self._current_pose , self._base_waypoints)
-        rospy.loginfo("nearest waypoint index = %s", self._nearest)
-
-        # Create the lane object to be published as final_waypoints
-        myLane = Lane()
-
-        # Create its header
-        myLane.header.seq = 0
-        myLane.header.stamp = rospy.Time(0)
-        myLane.header.frame_id = 'WhatIsThisFor'
-
-        # Create the waypoints locations
-        myLane.waypoints = []
-        last_wps = -1 # Last waypoint for use below
-        for i in range(LOOKAHEAD_WPS):
-
-          # The first waypoint is just the nearest
-          if i==0:
-            index = self._nearest
-          # Then we increment from there -- no splines yet
-          else:
-            index = self.next_waypoint( index, len(self._base_waypoints) )
-            if i==LOOKAHEAD_WPS-1: last_wps = index
-
-          # Copy in the relevant waypoint
-          myLane.waypoints.append(self._base_waypoints[index])
-
-          # But modify the sequence number to contain the index number... will use later in tl_detector.py
-          myLane.waypoints[i].pose.header.seq = index
-
-        # Set velocities based on state...
-        rospy.loginfo("car_state= %s",self.car_state)
-
-        ## Set velocity in the "go" state -- other states will be added later
-        if self.car_state == "go":
-
-          # Accellerate to target velocity -- right now this is just a constant, but once the DBW module
-          # is ready, this will accellerate gradually
-          new_velocity = 30
-          for i in range(LOOKAHEAD_WPS):
-            self.set_waypoint_velocity(myLane.waypoints, i, new_velocity)
-
-        # Finally, publish it
-        self.final_waypoints_pub.publish(myLane)
 
     # Gets the waypoints
     def waypoints_cb(self, waypoints):

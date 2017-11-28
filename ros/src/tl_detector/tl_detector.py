@@ -10,8 +10,10 @@ from light_classification.tl_classifier import TLClassifier
 import tf
 import cv2
 import yaml
+import os
 
 STATE_COUNT_THRESHOLD = 3
+SAVE_FRAMES = False
 
 class TLDetector(object):
     def __init__(self):
@@ -21,6 +23,9 @@ class TLDetector(object):
         self.waypoints = None
         self.camera_image = None
         self.lights = []
+
+        cascade_name = 'c16x32w30d2_3.xml'
+        self.cascade = cv2.CascadeClassifier(cascade_name)
 
         sub1 = rospy.Subscriber('/current_pose', PoseStamped, self.pose_cb)
         sub2 = rospy.Subscriber('/base_waypoints', Lane, self.waypoints_cb)
@@ -122,6 +127,26 @@ class TLDetector(object):
         #Get classification
         return self.light_classifier.get_classification(cv_image)
 
+    #returns array of detected TLs
+    def detect(self, image):
+        img = cv2.resize(image,(800,600))
+        gray = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY )
+        res = self.cascade.detectMultiScale2(gray, 1.1, 2, 0, 
+                                             (16,32), 
+                                             (100,200))
+        detected = res[0];
+        images = []
+        for result in detected:
+            p0 = (result[0], result[1])
+            p1 = (p0[0]+result[2], p0[1]+result[3])
+            cv2.rectangle(img, p0, p1, (0,0,255),2)
+            images.append(cv2.resize(img[p0[1]:p1[1], p0[0]:p1[0],:],
+                                     (16,32)))
+        cv2.imshow("detected",img)    
+        cv2.waitKey(2)
+        return images
+        
+
     def process_traffic_lights(self):
         """Finds closest visible traffic light, if one exists, and determines its
             location and color
@@ -131,7 +156,24 @@ class TLDetector(object):
             int: ID of traffic light color (specified in styx_msgs/TrafficLight)
 
         """
+        global cnt;
         light = None
+        cv_image = self.bridge.imgmsg_to_cv2(self.camera_image, "bgr8")
+
+        if SAVE_FRAMES: 
+            cv2.imshow("msg",cv_image); 
+            key = cv2.waitKey(20);
+            if (key > 0 and key < 255):
+                fname = '/media/D/DIZ/out/tl/{:07d}.png'.format(cnt)
+                cv2.imwrite(fname, cv_image);
+                cnt = cnt + 1
+                print('{}'.format(key))
+                print (fname)
+
+        #returns array of detected TLs
+        detected = self.detect(cv_image)
+        
+        #TODO: determine active color
 
         # List of positions that correspond to the line to stop in front of for a given intersection
         stop_line_positions = self.config['stop_line_positions']
@@ -148,6 +190,7 @@ class TLDetector(object):
 
 if __name__ == '__main__':
     try:
+        cnt = 0;
         TLDetector()
     except rospy.ROSInterruptException:
         rospy.logerr('Could not start traffic node.')

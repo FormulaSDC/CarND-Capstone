@@ -37,8 +37,14 @@ class WaypointUpdater(object):
         self.red_light_wp = -1
         self.current_linear_velocity = -1
         self.car_state = "go" # Possible states will be: go, stop, idle
-        self.go_mode = "gradual" # Choices are "constant" and "gradual"
+        self.go_mode = "constant" # Choices are "constant" and "gradual"
+                                  # "constant" sets all waypoints ahead to the desired speed
+                                  # "gradual" linearly increases the waypoint speed to the desired speed
         self.stop_point = None # The waypoint by which the car needs to stop
+        self.stop_mode = "gradual" # Choices are "slam" and "gradual"
+                                # "slam" sets all the waypoints to a speed of zero once car goes into stop state
+                                # "gradual" linearly decreases the waypoint speed until it reaches zero at the stop_point
+        self.stop_test = "no" # Whether to test stopping at a particular waypoint rather than at stop lights
         self.target_velocity_mph = 50 # Target velocity in miles per hour
         self.max_accelleration = 1 # The maximum accelleration (velocity unit increased per distance unit)
 
@@ -56,7 +62,7 @@ class WaypointUpdater(object):
 
         # Final waypoints: First waypoint listed is the one directly in front of the car.
         #                  Total number of way points to include are given above by LOOKAHEAD_WPS
-        self.final_waypoints_pub = rospy.Publisher('final_waypoints', Lane, queue_size=1)
+        self.final_waypoints_pub = rospy.Publisher('/final_waypoints', Lane, queue_size=1)
 
         # TODO: Add other member variables you need below
 
@@ -115,27 +121,51 @@ class WaypointUpdater(object):
             #  PART 1: FINITE STATE MACHINE -- SET THE STATE
             ####################################################################
 
-            # Part 1-A: Determine when to stop
-            # If there is a red light...
-            #if self.red_light_wp > -1:
-            #    # Check the decelleration needed to stop for it
-            #    totaldist = self.distance(self._base_waypoints, wp[0],self.red_light_wp)
-            #    if totaldist>0: decelleration = self.current_linear_velocity / totaldist
-            #    else: decelleration = 0
-            #    rospy.loginfo("There is a red light ahead: totaldist=%s, decelleration=%s",totaldist,decelleration)
-            #    # If the decelleration exceeds a threshold then begin stopping
-            #    if decelleration > 0.5:
-            #      self.car_state = "stop"
-            #      self.stop_point=self.red_light_wp
+            # From the "go" state we can only stop
+            if self.car_state=="go":
 
-            ## Part 2-A: Determine when we are in idle
-            #if (self.car_state=="stop") and (self.current_linear_velocity <= 0):
-            #  self.car_state = "idle"
+                # If in testing mode
+                if self.stop_test == "yes":
 
-            rospy.loginfo("car_state= %s",self.car_state)
+                    # Stop at waypoint 400
+                    if wp[0]==400:
+                        self.car_state = "stop"
+                        self.stop_point = 450
+
+                # If not in testing mode
+                else:
+
+                    # Stop for real if there is a red light
+                    if self.red_light_wp > -1:
+                        # Check the decelleration needed to stop for it
+                        totaldist = self.distance(self._base_waypoints, wp[0],self.red_light_wp)
+                        if totaldist>0: decelleration = self.current_linear_velocity / totaldist
+                        else: decelleration = 0
+                        rospy.loginfo("There is a red light ahead: totaldist=%s, decelleration=%s",totaldist,decelleration)
+                        # If the decelleration exceeds a threshold then begin stopping
+                        if decelleration > 0.5:
+                            self.car_state = "stop"
+                            self.stop_point=self.red_light_wp
+
+            ## From the "stop" state we can either go to "idle" or "go"
+            if self.car_state=="stop":
+
+                # Go to idle when velocity is essentially zero
+                if self.current_linear_velocity <= 0.0001:
+                    self.car_state = "idle"
+
+                # Go back to go if there is no red light ahead
+                elif (self.red_light_wp < 0):
+                    self.car_state = "go"
+
+            ## From the "idle" state we can only return to "go" once the light turns green
+            if (self.car_state=="idle") and (self.red_light_wp < 0):
+                self.car_state = "go"
+
+            rospy.loginfo("car_state= %s, current_linear_velocity=%s",self.car_state,self.current_linear_velocity)
 
             ####################################################################
-            #  PART 2: SET VELOCITY BASED ON THE STATE
+            #  PART 2: SET VELOCITY IN "go" STATE
             ####################################################################
 
             ## Set velocity in the "go" state
@@ -177,34 +207,51 @@ class WaypointUpdater(object):
                        # Logging
                        rospy.loginfo("velocity of waypoint %s (i=%s) set to %s", wp[i], i, new_velocity)
 
+            ####################################################################
+            #  PART 3: SET VELOCITY IN "stop" STATE
+            ####################################################################
+
             ## Set velocity in the "stop" state
             elif self.car_state == "stop":
-                 # Calculate distance to the stop point
-                 totaldist = self.distance(self._base_waypoints, wp[0],self.stop_point)
-                 # Calculate decelleration needed, i.e. current velocity over stopping distance
-                 if totaldist>0: decelleration = self.current_linear_velocity / totaldist
-                 else: decelleration = 0
-                 rospy.loginfo("decelleration=%s",decelleration)
-                 # Initialize flag indicating when the velocity must be zero
-                 must_be_zero = 0
-                 if decelleration <= 0: must_be_zero=1
-                 # Loop and define the velocity at each point
-                 for i in range(LOOKAHEAD_WPS):
-                       # Check if we have reached the stop point
-                       if wp[i] == self.stop_point: must_be_zero=1
-                       # Calculate distance between successive waypoints
-                       if i<LOOKAHEAD_WPS-1:
-                         dist = self.distance(self._base_waypoints, wp[i],wp[i+1])
-                       # Calculate the new velocity
-                       if must_be_zero==1: new_velocity=0.0
-                       elif i==0: new_velocity=self.current_linear_velocity
-                       else: new_velocity -= decelleration * dist
-                       # Floor the velocity at zero
-                       if new_velocity <= 0: new_velocity=0.0
-                       # Set the new velocity
-                       self.set_waypoint_velocity(myLane.waypoints, i, new_velocity)
-                       # Logging
-                       rospy.loginfo("velocity of waypoint %s (i=%s) set to %s", wp[i], i, new_velocity)
+
+                # Slam mode
+                if self.stop_mode == "slam":
+                    for i in range(LOOKAHEAD_WPS):
+                        self.set_waypoint_velocity(myLane.waypoints, i, 0.0)
+
+                # Gradual mode: increment the velocity by self.max_accelleration until it exceeds the target speed
+                elif self.stop_mode == "gradual":
+
+                    # Calculate distance to the stop point
+                    totaldist = self.distance(self._base_waypoints, wp[0],self.stop_point)
+                    # Calculate decelleration needed, i.e. current velocity over stopping distance
+                    if totaldist>0: decelleration = self.current_linear_velocity / totaldist
+                    else: decelleration = 0
+                    rospy.loginfo("decelleration=%s",decelleration)
+                    # Initialize flag indicating when the velocity must be zero
+                    must_be_zero = 0
+                    if decelleration <= 0: must_be_zero=1
+                    # Loop and define the velocity at each point
+                    for i in range(LOOKAHEAD_WPS):
+                          # Check if we have reached the stop point
+                          if wp[i] == self.stop_point: must_be_zero=1
+                          # Calculate distance between successive waypoints
+                          if i<LOOKAHEAD_WPS-1:
+                            dist = self.distance(self._base_waypoints, wp[i],wp[i+1])
+                          # Calculate the new velocity
+                          if must_be_zero==1: new_velocity=0.0
+                          elif i==0: new_velocity=self.current_linear_velocity
+                          else: new_velocity -= decelleration * dist
+                          # Floor the velocity at zero
+                          if new_velocity <= 0: new_velocity=0.0
+                          # Set the new velocity
+                          self.set_waypoint_velocity(myLane.waypoints, i, new_velocity)
+                          # Logging
+                          rospy.loginfo("velocity of waypoint %s (i=%s) set to %s", wp[i], i, new_velocity)
+
+            ####################################################################
+            #  PART 4: SET VELOCITY IN "idle" STATE
+            ####################################################################
 
             ## Set velocity in the "idle" state
             elif self.car_state == "idle":

@@ -24,7 +24,8 @@ as well as to verify your TL classifier.
 TODO (for Yousuf and Aaron): Stopline location for each traffic light.
 '''
 
-LOOKAHEAD_WPS = 200 # Number of waypoints we will publish. You can change this number
+LOOKAHEAD_WPS = 200  # Number of waypoints we will publish. You can change this number
+ONE_MPH = 0.44704
 
 
 class WaypointUpdater(object):
@@ -38,14 +39,14 @@ class WaypointUpdater(object):
         self.n_base_wps = None
         self._current_pose = None
         self.red_light_wp = -1
-        self.current_linear_velocity = -1
-        self.car_state = "go" # Possible states will be: go, stop, idle
+        self.current_velocity = 0.
+        self.car_state = "go"  # Possible states will be: go, stop, idle
 
         # Current position:
         rospy.Subscriber('/current_pose', PoseStamped, self.pose_cb)
 
         # Current velocity
-        #rospy.Subscriber('/current_velocity', TwistStamped , self.current_velocity_cb)
+        rospy.Subscriber('/current_velocity', TwistStamped , self.current_velocity_cb)
 
         # Base waypoints: are for the entire track and are only published once
         rospy.Subscriber('/base_waypoints', Lane, self.waypoints_cb)
@@ -62,16 +63,15 @@ class WaypointUpdater(object):
         # rospy.spin()
         self.loop()
 
-
     def loop(self):
-        rate = rospy.Rate(20) # 25 Hz
+        rate = rospy.Rate(10)  # 10 Hz
         while not rospy.is_shutdown():
             if (self._base_waypoints is None) or (self._current_pose is None):
                 continue
 
             # Find the nearest waypoint
-            self._nearest = self.find_nearest(self._current_pose, self._base_waypoints)
-            rospy.loginfo("nearest waypoint index = %s", self._nearest)
+            nearest = self.find_nearest(self._current_pose, self._base_waypoints)
+            # rospy.loginfo("nearest waypoint index = %s", nearest)
 
             # Create the lane object to be published as final_waypoints
             myLane = Lane()
@@ -83,8 +83,8 @@ class WaypointUpdater(object):
 
             # Create the waypoints locations
             myLane.waypoints = []
-            index = self._nearest
-            #rospy.loginfo("nearest waypoint index : %s of %s", index, self.n_base_wps)
+            index = nearest
+            # rospy.loginfo("nearest waypoint index : %s of %s", index, self.n_base_wps)
             last_wp = index + LOOKAHEAD_WPS - 1  # Last waypoint
 
             if index + LOOKAHEAD_WPS > self.n_base_wps:
@@ -95,12 +95,21 @@ class WaypointUpdater(object):
             else:
                 base_wps = self._base_waypoints[index: last_wp+1]
 
+            v_init = self.current_velocity
+            v_final = self. get_waypoint_velocity(base_wps[-1])
+            m = (v_final - v_init) / len(base_wps)
+            rospy.loginfo("wp call current v : %s", v_init)
+
             for i, base_wp in enumerate(base_wps):
                 # Copy in the relevant waypoint
                 myLane.waypoints.append(base_wp)
 
                 # But modify the sequence number to contain the index number... will use later in tl_detector.py
                 myLane.waypoints[i].pose.header.seq = (index + i) % self.n_base_wps
+
+                v = v_init + m * (i + 1)
+                #rospy.loginfo("wp index : %s  ,  target v : %s", i, v)
+                self.set_waypoint_velocity(myLane.waypoints, i, v)
 
             # last_wps = (self._nearest + LOOKAHEAD_WPS - 1) % nWp
 
@@ -131,13 +140,14 @@ class WaypointUpdater(object):
 
     # Gets the waypoints
     def waypoints_cb(self, waypoints):
-        #r ospy.loginfo('WaypointUpdater: waypoints_cb starting')
+        # rospy.loginfo('WaypointUpdater: waypoints_cb starting')
         self._base_waypoints = waypoints.waypoints
         self.n_base_wps = len(self._base_waypoints)
 
     # Callback function for current_velocity
     def current_velocity_cb(self, msg):
-        self.current_linear_velocity = msg.twist.linear.x  # m/s
+        self.current_velocity = msg.twist.linear.x  # m/s
+        #rospy.loginfo("v : %s", self.current_velocity)
 
     # Find the nearest waypoint
     def find_nearest(self, curr_pose, base_wps):

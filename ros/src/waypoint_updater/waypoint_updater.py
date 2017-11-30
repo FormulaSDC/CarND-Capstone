@@ -47,7 +47,9 @@ class WaypointUpdater(object):
                                 # "gradual" linearly decreases the waypoint speed until it reaches zero at the stop_point
         self.stop_test = "no" # Whether to test stopping at a particular waypoint rather than at stop lights
         self.max_acc = 1.  # in m/s^2
-        self.find_nearest_wp = self.find_nearest_basic
+        self.find_nearest_wp = self.find_nearest_basic  # choices are self.find_nearest_basic and self.find_nearest
+                                                        # self.find_nearest_basic is borrowed from Udacity lessons
+                                                        # self.nearest is Paul's more sophisticated method
 
         # Current position:
         rospy.Subscriber('/current_pose', PoseStamped, self.pose_cb)

@@ -86,8 +86,5 @@ class Controller(object):
         rospy.loginfo("throttle : %s %s %s %s", throttle, curr_acc, cur_linear, tgt_linear)
 
 
-
-
-
         # Return throttle, brake, steer
         return throttle, brake, steer

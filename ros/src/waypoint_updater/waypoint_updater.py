@@ -5,7 +5,6 @@ from geometry_msgs.msg import PoseStamped, TwistStamped
 from styx_msgs.msg import Lane, Waypoint
 from std_msgs.msg import Int32
 import tf
-
 import math
 import copy
 
@@ -67,6 +66,9 @@ class WaypointUpdater(object):
         #                  Total number of way points to include are given above by LOOKAHEAD_WPS
         self.final_waypoints_pub = rospy.Publisher('/final_waypoints', Lane, queue_size=1)
 
+        # current waypoint index of car
+        self.waypoint_index_pub = rospy.Publisher('/current_waypoint', Int32, queue_size=1)
+
         # TODO: Add other member variables you need below
 
         #rospy.spin()
@@ -75,7 +77,7 @@ class WaypointUpdater(object):
     # Looping instead of spinning
     def loop(self):
         rate = rospy.Rate(10)
-        rospy.loginfo("starting loop with car_state=%s and publishing rate=%s ", self.car_state, rate)
+        # rospy.loginfo("starting loop with car_state=%s and publishing rate=%s ", self.car_state, rate)
 
         # Loop when certain conditions are met
         while not rospy.is_shutdown():
@@ -109,6 +111,9 @@ class WaypointUpdater(object):
                 if i==0:
                     # The first waypoint is just the nearest
                     index = self._nearest
+
+                    # publish the nearest waypoint index
+                    self.waypoint_index_pub.publish(Int32(index))
                 else:
                     # Then we increment from there
                     index = self.next_waypoint( index, len(self._base_waypoints) )
@@ -274,6 +279,9 @@ class WaypointUpdater(object):
 
             # Finally, publish the new velocities
             self.final_waypoints_pub.publish(myLane)
+
+            # Wait a little before publishing the next command
+            rate.sleep()
 
     def pose_cb(self, msg):
         #rospy.loginfo('WaypointUpdater: pose_cb starting')
@@ -505,11 +513,6 @@ class WaypointUpdater(object):
         else: prevwp = cur + -1
         return prevwp
 
-    # Euclidean distance.  TODO: Find a common place to put this function
-    def dist( self, x1, x2, y1, y2 ):
-        dist = math.sqrt( (x1-x2)**2 + (y1-y2)**2 )
-        return dist
-
     def traffic_cb(self, msg):
         self.red_light_wp = msg.data
         rospy.loginfo("waypoint_updater:traffic_cb says there is a red light at waypoint %s" , self.red_light_wp )
@@ -523,6 +526,10 @@ class WaypointUpdater(object):
 
     def set_waypoint_velocity(self, waypoints, waypoint, velocity):
         waypoints[waypoint].twist.twist.linear.x = velocity
+
+    # Euclidean distance.
+    def dist(self, x1, x2, y1, y2):
+        return math.sqrt((x1 - x2) ** 2 + (y1 - y2) ** 2)
 
     def distance(self, waypoints, wp1, wp2):
         dist = 0

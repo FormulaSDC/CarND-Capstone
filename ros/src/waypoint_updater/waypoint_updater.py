@@ -6,7 +6,6 @@ from styx_msgs.msg import Lane, Waypoint
 from std_msgs.msg import Int32
 import tf
 import math
-import copy
 
 '''
 This node will publish waypoints from the car's current position to some `x` distance ahead.
@@ -24,6 +23,10 @@ TODO (for Yousuf and Aaron): Stopline location for each traffic light.
 '''
 
 LOOKAHEAD_WPS = 200 # Number of waypoints we will publish. You can change this number
+EASY_DECEL = 1.  # used to determine the stopping distance
+HARD_DECEL = 5.  # abort stopping if deceleration required exceeds this threshold
+ONE_MPH = 0.44704
+SAFE_DIST = 8.
 
 class WaypointUpdater(object):
     def __init__(self):
@@ -36,6 +39,7 @@ class WaypointUpdater(object):
         self._current_pose = None
         self.red_light_wp = -1
         self.current_linear_velocity = -1.
+        self.speed_limit = rospy.get_param('/waypoint_loader/velocity') / 3.6
         self.car_state = "go" # Possible states will be: go, stop, idle
         self.go_mode = "constant" # Choices are "constant" and "gradual"
                                   # "constant" sets all waypoints ahead to the desired speed
@@ -145,15 +149,31 @@ class WaypointUpdater(object):
 
                     # Stop for real if there is a red light
                     if self.red_light_wp > -1:
-                        # Check the decelleration needed to stop for it
-                        totaldist = self.distance(self._base_waypoints, wp[0], self.red_light_wp)
-                        if totaldist > 0:
-                            decelleration = self.current_linear_velocity / totaldist
-                        else:
-                            decelleration = 0
-                        rospy.loginfo("There is a red light ahead: totaldist=%s, decelleration=%s",totaldist,decelleration)
-                        # If the decelleration exceeds a threshold then begin stopping
-                        if decelleration > 0.5:
+                        # Check the deceleration needed to stop for it
+                        total_dist = self.distance(self._base_waypoints, wp[0], self.red_light_wp)
+
+                        # calculate the distance at which to safely start applying brakes
+                        # using equation of motion v^2 = u^2 + 2 * a * s
+                        # v = final velocity = 0
+                        # u = initial velocity = v_max
+                        # a =  - deceleration
+                        # s = distance (to be calculated)
+                        v_max = max(self.current_linear_velocity, self.speed_limit)
+                        safe_braking_dist = max(SAFE_DIST, .5 * v_max * v_max / EASY_DECEL)
+
+                        # using same equation, calculate the actual deceleration required
+                        # if we are at or have already passed the safe braking distance
+                        deceleration = 0.
+                        if 0. < total_dist < safe_braking_dist:
+                            v = self.current_linear_velocity
+                            deceleration = .5 * v * v / total_dist
+                        rospy.loginfo("There is a red light ahead: total_dist=%s, deceleration=%s",
+                                      total_dist, deceleration)
+
+                        # If the deceleration required is beyond a threshold, we don't stop!
+                        # This covers scenario when we are very close to stop line
+                        # and the light changes from green to yellow, we just continue
+                        if EASY_DECEL < deceleration < HARD_DECEL:
                             self.car_state = "stop"
                             self.stop_point=self.red_light_wp
 
@@ -161,7 +181,7 @@ class WaypointUpdater(object):
             if self.car_state=="stop":
 
                 # Go to idle when velocity is essentially zero
-                if self.current_linear_velocity <= 0.0001:
+                if self.current_linear_velocity <= 0.01:
                     self.car_state = "idle"
 
                 # Go back to go if there is no red light ahead
@@ -172,7 +192,8 @@ class WaypointUpdater(object):
             if (self.car_state=="idle") and (self.red_light_wp < 0):
                 self.car_state = "go"
 
-            rospy.loginfo("car_state= %s, current_linear_velocity=%s",self.car_state,self.current_linear_velocity)
+            rospy.loginfo("car_state= %s, current_linear_velocity=%s", self.car_state,
+                          self.current_linear_velocity)
 
             ####################################################################
             #  PART 2: SET VELOCITY IN "go" STATE
@@ -181,14 +202,20 @@ class WaypointUpdater(object):
             ## Set velocity in the "go" state
             if self.car_state == "go":
 
-                # Constant mode : no need to do anything here, target velocities already set
+                rospy.loginfo("************ %s",
+                              self.get_waypoint_velocity(myLane.waypoints[-1]))
+
+                # Constant mode : we set the speed to speed limit
+                if self.go_mode == "constant":
+                    for i in range(LOOKAHEAD_WPS):
+                        self.set_waypoint_velocity(myLane.waypoints, i, self.speed_limit)
                 # Gradual mode: increment the velocity by self.max_accelleration until it exceeds the target speed
                 if self.go_mode == "gradual":
                     # default target velocity
                     target_velocity = self.get_waypoint_velocity(self._base_waypoints[wp[-1]])
 
                     # Initialize the velocity with the current velocity
-                    rospy.loginfo("current velocity is %s", self.current_linear_velocity)
+                    # rospy.loginfo("current velocity is %s", self.current_linear_velocity)
                     new_velocity = self.current_linear_velocity
 
                     # Loop
@@ -212,7 +239,7 @@ class WaypointUpdater(object):
                         self.set_waypoint_velocity(myLane.waypoints, i, new_velocity)
 
                         # Logging
-                        rospy.loginfo("velocity of waypoint %s (i=%s) set to %s", wp[i], i, new_velocity)
+                        # rospy.loginfo("velocity of waypoint %s (i=%s) set to %s", wp[i], i, new_velocity)
 
             ####################################################################
             #  PART 3: SET VELOCITY IN "stop" STATE
@@ -230,43 +257,50 @@ class WaypointUpdater(object):
                 elif self.stop_mode == "gradual":
 
                     # Calculate distance to the stop point
-                    totaldist = self.distance(self._base_waypoints, wp[0],self.stop_point)
-                    # Calculate decelleration needed, i.e. current velocity over stopping distance
-                    if totaldist>0:
-                        decelleration = self.current_linear_velocity / totaldist
-                    else:
-                        decelleration = 0
-                    rospy.loginfo("decelleration=%s",decelleration)
+                    total_dist = self.distance(self._base_waypoints, wp[0],self.stop_point)
+                    v_max = min(self.current_linear_velocity, self.speed_limit)
+                    safe_braking_dist = max(SAFE_DIST, .5 * v_max * v_max / EASY_DECEL)
+
+                    deceleration = 0.
+                    v = self.current_linear_velocity
+                    # Calculate deceleration needed
+                    # add an extra deceleration (= EASY_DECEL) for safety
+                    # also reduce the speed by 90% or at least 1 mph for the nearest waypoint
+                    if 0. < total_dist < safe_braking_dist:
+                        deceleration = .5 * v * v / total_dist + EASY_DECEL
+                        v = max(v - ONE_MPH, 0.9 * v)
+                    # rospy.loginfo("decelleration=%s",decelleration)
 
                     # Initialize flag indicating when the velocity must be zero
-                    must_be_zero = 0
-                    if decelleration <= 0:
-                        must_be_zero = 1
+                    target_reached = False
 
                     # Loop and define the velocity at each point
                     for i in range(LOOKAHEAD_WPS):
                         # Check if we have reached the stop point
-                        if wp[i] == self.stop_point: must_be_zero=1
+                        if wp[i] == self.stop_point:
+                            target_reached = True
+
                         # Calculate distance between successive waypoints
-                        if i<LOOKAHEAD_WPS-1:
-                            dist = self.distance(self._base_waypoints, wp[i], wp[i+1])
+                        dist = 0.
+                        if i > 0:
+                            dist = self.distance(self._base_waypoints, wp[i-1], wp[i])
 
                         # Calculate the new velocity
-                        if must_be_zero == 1:
-                            new_velocity = 0.
-                        elif i == 0:
-                            new_velocity = self.current_linear_velocity
+                        if target_reached:
+                            v = 0.
                         else:
-                            new_velocity -= decelleration * dist
+                            v_sq = v*v - 2. * deceleration * dist
 
-                        # Floor the velocity at zero
-                        if new_velocity <= 0:
-                            new_velocity = 0.
+                            # Floor the velocity at zero
+                            if v_sq <= 0:
+                                v = 0.
+                            else:
+                                v = math.sqrt(v_sq)
 
                         # Set the new velocity
-                        self.set_waypoint_velocity(myLane.waypoints, i, new_velocity)
+                        self.set_waypoint_velocity(myLane.waypoints, i, v)
                         # Logging
-                        rospy.loginfo("velocity of waypoint %s (i=%s) set to %s", wp[i], i, new_velocity)
+                        # rospy.loginfo("velocity of waypoint %s (i=%s) set to %s", wp[i], i, new_velocity)
 
             ####################################################################
             #  PART 4: SET VELOCITY IN "idle" STATE
@@ -348,7 +382,7 @@ class WaypointUpdater(object):
         # Get the current x, y positions
         cur_x = cur.position.x
         cur_y = cur.position.y
-        rospy.loginfo("current position (x,y) = (%s,%s)" , cur_x, cur_y)
+        # rospy.loginfo("current position (x,y) = (%s,%s)" , cur_x, cur_y)
 
         # Get number of waypoints on the map
         nWp = len(base)
@@ -515,7 +549,7 @@ class WaypointUpdater(object):
 
     def traffic_cb(self, msg):
         self.red_light_wp = msg.data
-        rospy.loginfo("waypoint_updater:traffic_cb says there is a red light at waypoint %s" , self.red_light_wp )
+        # rospy.loginfo("waypoint_updater:traffic_cb says there is a red light at waypoint %s" , self.red_light_wp )
 
     def obstacle_cb(self, msg):
         # TODO: Callback for /obstacle_waypoint message. We will implement it later
@@ -532,7 +566,7 @@ class WaypointUpdater(object):
         return math.sqrt((x1 - x2) ** 2 + (y1 - y2) ** 2)
 
     def distance(self, waypoints, wp1, wp2):
-        dist = 0
+        dist = 0.
         dl = lambda a, b: math.sqrt((a.x-b.x)**2 + (a.y-b.y)**2  + (a.z-b.z)**2)
         for i in range(wp1, wp2+1):
             dist += dl(waypoints[wp1].pose.pose.position, waypoints[i].pose.pose.position)

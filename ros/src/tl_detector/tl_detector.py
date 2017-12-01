@@ -73,7 +73,7 @@ class TLDetector(object):
     # Callback for current waypoint
     def current_waypoint_cb(self, waypoint_idx):
         self.car_current_waypoint = waypoint_idx.data
-        rospy.loginfo("current_waypoint_cb says car current waypoint is %s", self.car_current_waypoint)
+        # rospy.loginfo("current_waypoint_cb says car current waypoint is %s", self.car_current_waypoint)
 
     # Callback for /base_waypoints topic
     def waypoints_cb(self, waypoints):
@@ -88,7 +88,7 @@ class TLDetector(object):
         # in development) can be queried separately from finding the locations
 
         # Get waypoint indices for the waypoint nearest to each stop LINE
-        rospy.loginfo("Getting stop_line_indices!!!")
+        # rospy.loginfo("Getting stop_line_indices!!!")
         stop_line_positions = self.config['stop_line_positions']
 
         for stop_line_position in stop_line_positions:
@@ -100,11 +100,11 @@ class TLDetector(object):
             closest_wp = self.get_closest_waypoint(line_pose)
             # Add the stop line waypoint index to the list
             self.stop_line_indices.append(closest_wp)
-            rospy.loginfo("Line at position (%s,%s) and is closest to waypoint %s",
-                          line_pose.position.x, line_pose.position.y, closest_wp)
+            # rospy.loginfo("Line at position (%s,%s) and is closest to waypoint %s",
+            #              line_pose.position.x, line_pose.position.y, closest_wp)
 
         # Output the list of indices
-        rospy.loginfo("Stop line waypoints are: %s ", self.stop_line_indices)
+        # rospy.loginfo("Stop line waypoints are: %s ", self.stop_line_indices)
 
     def traffic_cb(self, msg):
         self.lights = msg.lights
@@ -112,7 +112,7 @@ class TLDetector(object):
         # closest to each stop line and light
         self.stop_light_states = [light.state for light in self.lights]
         # Output the list of states
-        rospy.loginfo("Light states are: %s ", self.stop_light_states)
+        # rospy.loginfo("Light states are: %s ", self.stop_light_states)
 
     # Callback for /image_color topic
     def image_cb(self, msg):
@@ -121,7 +121,7 @@ class TLDetector(object):
         Args:
             msg (Image): image from car-mounted camera
         """
-        rospy.loginfo("image_cb starting!!!")
+        # rospy.loginfo("image_cb starting!!!")
 
         # Get the image
         self.has_image = True

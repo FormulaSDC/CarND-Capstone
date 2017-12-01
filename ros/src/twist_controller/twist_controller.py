@@ -59,7 +59,7 @@ class Controller(object):
         curr_acc = (self.prev_vels[-1] - self.prev_vels[0]) / dt / len(self.prev_vels)
         acc = curr_acc
         gamma = abs(tgt_linear - cur_linear) / BUFFER_SPEED
-        da = 0.07 * (1 + gamma)  # (jerk ~ 7.5 m/s^3)
+        da = 0.1 * (1 + gamma)  # (jerk ~ 7.5 m/s^3)
         if v < tgt_linear:
             acc = max(da, acc + da)
             if v > tgt_linear - 0.25 * BUFFER_SPEED:
@@ -76,11 +76,11 @@ class Controller(object):
         torque = (acc * self.vehicle_mass + F_drag + F_rr) * self.wheel_radius
         max_torque = 300.
 
-        if torque > 0:
+        if acc > 0:
             throttle = min(.8, torque / max_torque)
             brake = 0.
         else:
-            brake = -torque
+            brake = max(0., -torque)
             throttle = 0.0
 
         rospy.loginfo("throttle : %s %s %s %s", throttle, curr_acc, cur_linear, tgt_linear)

@@ -26,21 +26,24 @@ class TLDetector(object):
         self.car_current_waypoint = None
         self.lights = []
         self.stop_line_indices = []
-        self.mode = 0  # 0 for development where we get the true light state
+        self.mode = 1  # 0 for development where we get the true light state
                        # 1 for testing where we predict the light state from a classifier
 
-        cascade_name = 'c16x32w30d2_3.xml'
+        cascade_name = 'cComb16x32LBPw30d2_3.xml'
         self.cascade = cv2.CascadeClassifier(cascade_name)
 
         # Subscribe
         sub1 = rospy.Subscriber('/current_pose', PoseStamped, self.pose_cb)
         sub2 = rospy.Subscriber('/base_waypoints', Lane, self.waypoints_cb)
         sub3 = rospy.Subscriber('/image_color', Image, self.image_cb)
+        #to read raw images from rosbags
+        sub3_1 = rospy.Subscriber('/image_raw', Image, self.image_cb)
         sub4 = rospy.Subscriber('/current_waypoint', Int32, self.current_waypoint_cb)
 
         if self.mode == 0:
             sub5 = rospy.Subscriber('/vehicle/traffic_lights', TrafficLightArray,
                                 self.traffic_cb)  # Color not available in real use.
+                                
 
         '''
         /vehicle/traffic_lights provides you with the location of the traffic light in 3D map space and
@@ -185,41 +188,49 @@ class TLDetector(object):
         Returns:
             int: ID of traffic light color (specified in styx_msgs/TrafficLight)
         """
+
         # In development mode, we can get the ground truth light state
         if self.mode == 0:
             if light_idx is None:
                 return TrafficLight.UNKNOWN
             else:
                 return self.lights[light_idx].state
-
-        # In testing mode, we predict the light state using a classifier
         else:
-            if (not self.has_image):
+
+            if (self.has_image):
+                cv_image = self.bridge.imgmsg_to_cv2(self.camera_image, "bgr8")
+                detections = self.detect(cv_image)
+            
+                # detect TLs in the image returns array of detected TLs
+                for tl_image in detections:
+                    # TODO: determine active color
+                    tl_color = self.light_classifier.get_classification(cv_image)
+            else:
                 self.prev_light_loc = None
-                return False
 
-            cv_image = self.bridge.imgmsg_to_cv2(self.camera_image, "bgr8")
+            return TrafficLight.UNKNOWN
 
-            # Get classification
-            return self.light_classifier.get_classification(cv_image)
+            
 
     # returns array of detected TLs
     def detect(self, image):
-        img = cv2.resize(image, (800, 600))
-        gray = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
-        res = self.cascade.detectMultiScale2(gray, 1.1, 2, 0,
+        img = cv2.resize(image, (720, 540));
+        gray = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY);
+        
+        detection_res = self.cascade.detectMultiScale2(gray, 1.2, 1, 0,
                                              (16, 32),
-                                             (100, 200))
-        detected = res[0]
-        images = []
+                                             (100, 200));
+        #return 0;
+        detected = detection_res[0];
+        images = [];
+        img_out = img.copy();
         for result in detected:
-            p0 = (result[0], result[1])
-            p1 = (p0[0] + result[2], p0[1] + result[3])
-            cv2.rectangle(img, p0, p1, (0, 0, 255), 2)
+            p0 = (result[0], result[1]);
+            p1 = (p0[0] + result[2], p0[1] + result[3]);
+            cv2.rectangle(img_out, p0, p1, (0, 0, 255), 2)
             images.append(cv2.resize(img[p0[1]:p1[1], p0[0]:p1[0], :],
                                      (16, 32)))
-        cv2.imshow("detected", img)
-        cv2.waitKey(2)
+        cv2.imshow("detected", img_out);  cv2.waitKey(2);
         return images
 
     def process_traffic_lights(self):
@@ -232,39 +243,15 @@ class TLDetector(object):
         light_idx = None
         light_wp = -1
 
-        if self.mode == 0:
-            # find the closest light
-            if self.pose and (self.car_current_waypoint is not None):
-                idx_dist_min = 9999
-                for i, stop_line_idx in enumerate(self.stop_line_indices):
-                    idx_dist = stop_line_idx - self.car_current_waypoint
-                    if 0 < idx_dist < idx_dist_min:
-                        light_idx = i
-                        idx_dist_min = idx_dist
-                        light_wp = stop_line_idx
-
-        else:
-            global cnt
-            cv_image = self.bridge.imgmsg_to_cv2(self.camera_image, "bgr8")
-
-            if SAVE_FRAMES:
-                cv2.imshow("msg", cv_image)
-                key = cv2.waitKey(20)
-                if 0 < key < 255:
-                    fname = '/data/tl/{:07d}.png'.format(cnt)
-                    cv2.imwrite(fname, cv_image)
-                    cnt = cnt + 1
-                    print('{}'.format(key))
-                    print(fname)
-
-            # returns array of detected TLs
-            detections = self.detect(cv_image)
-
-            # TODO: determine active color
-
-
-            # TODO find the closest visible traffic light (if one exists)
-            # probably not required since successive lights are far enough?
+        # find the closest light
+        if self.pose and (self.car_current_waypoint is not None):
+            idx_dist_min = 9999
+            for i, stop_line_idx in enumerate(self.stop_line_indices):
+                idx_dist = stop_line_idx - self.car_current_waypoint
+                if 0 < idx_dist < idx_dist_min:
+                    light_idx = i
+                    idx_dist_min = idx_dist
+                    light_wp = stop_line_idx
 
         light_state = self.get_light_state(light_idx)
         return light_wp, light_state

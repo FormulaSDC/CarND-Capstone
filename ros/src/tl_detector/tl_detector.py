@@ -204,7 +204,7 @@ class TLDetector(object):
                 # detect TLs in the image returns array of detected TLs
                 for tl_image in detections:
                     # TODO: determine active color
-                    tl_color = self.light_classifier.get_classification(cv_image)
+                    tl_color = self.light_classifier.get_classification(tl_image)
             else:
                 self.prev_light_loc = None
 

@@ -16,6 +16,9 @@ STATE_COUNT_THRESHOLD = 3
 SAVE_FRAMES = False
 
 
+tlstates = ['RED','YELLOW','GREEN','UNKNOWN','UNKNOWN']
+
+
 class TLDetector(object):
     def __init__(self):
         rospy.init_node('tl_detector')
@@ -200,15 +203,20 @@ class TLDetector(object):
             if (self.has_image):
                 cv_image = self.bridge.imgmsg_to_cv2(self.camera_image, "bgr8")
                 detections = self.detect(cv_image)
+
+                if not len(detections) > 0:
+                    return TrafficLight.UNKNOWN
             
                 # detect TLs in the image returns array of detected TLs
                 for tl_image in detections:
                     # TODO: determine active color
                     tl_color = self.light_classifier.get_classification(tl_image)
+                    rospy.loginfo("Detected {}".format(tlstates[tl_color]))
             else:
                 self.prev_light_loc = None
+                return TrafficLight.UNKNOWN
 
-            return TrafficLight.UNKNOWN
+            return tl_color
 
             
 

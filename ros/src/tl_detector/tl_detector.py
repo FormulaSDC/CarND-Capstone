@@ -29,7 +29,7 @@ class TLDetector(object):
         self.car_current_waypoint = None
         self.lights = []
         self.stop_line_indices = []
-        self.mode = 1  # 0 for development where we get the true light state
+        self.mode = 0  # 0 for development where we get the true light state
                        # 1 for testing where we predict the light state from a classifier
 
         cascade_name = 'cComb16x32LBPw30d2_3.xml'
@@ -225,7 +225,7 @@ class TLDetector(object):
         img = cv2.resize(image, (720, 540));
         gray = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY);
         
-        detection_res = self.cascade.detectMultiScale2(gray, 1.2, 1, 0,
+        detection_res = self.cascade.detectMultiScale2(gray, 1.1, 1, 0,
                                              (16, 32),
                                              (100, 200));
         #return 0;
@@ -235,9 +235,18 @@ class TLDetector(object):
         for result in detected:
             p0 = (result[0], result[1]);
             p1 = (p0[0] + result[2], p0[1] + result[3]);
-            cv2.rectangle(img_out, p0, p1, (0, 0, 255), 2)
-            images.append(cv2.resize(img[p0[1]:p1[1], p0[0]:p1[0], :],
-                                     (16, 32)))
+            tl_image = cv2.resize(img[p0[1]:p1[1], p0[0]:p1[0], :],
+                                     (16, 32));
+            tl_color = self.light_classifier.get_classification(tl_image);                         
+            color = (200,200,200);
+            if tl_color == TrafficLight.RED:
+                color = (0,0,200);
+            elif tl_color == TrafficLight.YELLOW:
+                color = (0,200,200);
+            elif tl_color == TrafficLight.GREEN:
+                color = (0,200,0);
+            cv2.rectangle(img_out, p0, p1, color, 2);
+            images.append(tl_image);
         cv2.imshow("detected", img_out);  cv2.waitKey(2);
         return images
 
@@ -250,6 +259,7 @@ class TLDetector(object):
         """
         light_idx = None
         light_wp = -1
+        light_state = TrafficLight.UNKNOWN;
 
         # find the closest light
         if self.pose and (self.car_current_waypoint is not None):
@@ -260,8 +270,8 @@ class TLDetector(object):
                     light_idx = i
                     idx_dist_min = idx_dist
                     light_wp = stop_line_idx
-
-        light_state = self.get_light_state(light_idx)
+        if (idx_dist_min < 200):            
+            light_state = self.get_light_state(light_idx)
         return light_wp, light_state
 
     # Euclidean distance.

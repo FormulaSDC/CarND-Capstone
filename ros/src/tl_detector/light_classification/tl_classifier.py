@@ -20,12 +20,18 @@ class TLClassifier(object):
 
         """
         #TODO implement light color prediction
+        # Croping the image edges a bit since the bounding box is slighly larger than the traffic light
+        image = image[
+                      int(0.05 * image.shape[0]) : int(0.95 * image.shape[0]), 
+                      int(0.05 * image.shape[1]) : int(0.95 * image.shape[1]), 
+                      :]
+
         blue_img    = image[:,:,0]
         red_img     = image[:,:,1]
         green_img   = image[:,:,2]
-        red_layer   = np.sum(red_img > .8*red_img.max())/float(red_img.size)
-        green_layer = np.sum(green_img > .8*green_img.max())/float(red_img.size)
-        blue_layer  = np.sum(blue_img > .8*blue_img.max())/float(red_img.size)
+        red_layer   = np.sum(red_img   > .8*red_img.max())   / float(red_img.size)
+        green_layer = np.sum(green_img > .8*green_img.max()) / float(red_img.size)
+        blue_layer  = np.sum(blue_img  > .8*blue_img.max())  / float(red_img.size)
 
         rospy.loginfo("Red: {}, Green: {}, Blue: {}, Shape: {}".format(red_layer, green_layer, blue_layer, red_img.size))
 

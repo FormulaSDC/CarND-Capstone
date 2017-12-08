@@ -1,0 +1,2 @@
+model_checkpoint_path: "mixNetI.ckpt"
+all_model_checkpoint_paths: "mixNetI.ckpt"

@@ -1,3 +1,21 @@
+### Notes for the 20171208 commit to 'detection' branch
+1. Traffic Light (TL) detection is enabled only if distance to the next 
+TL is < 200 (or if we are reading images from the rosbag)
+
+2. image_raw handler moved to the separate callback (to enable TL detection)
+3. simple DNN (scripts/MixNet.py) for TL classification (accuracy 0.95 on val. set)
+4. colored rectangles for detected TLs 
+5. I've suppressed a couple of log messages 
+in twist_controller\twist_controller.py
+and waypoint_updater\waypoint_updater.py
+with if (False):
+
+I've tested on old simulator: it works, but it stops not on every red light, and
+it always stops after 6600 waitpoints (even in mode 0, without detection).
+On rosbags, it detects TL almost always.
+
+
+
 ### Notes for the 'detection' branch
 
 I've modified tl_detector.py only_

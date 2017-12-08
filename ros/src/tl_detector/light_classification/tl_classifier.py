@@ -1,13 +1,39 @@
 from styx_msgs.msg import TrafficLight
 import numpy as np
 import rospy
+import tensorflow as tf
+import cv2
+import os
+
+
 
 class TLClassifier(object):
     def __init__(self):
         #TODO load classifier
-        self.upper_thr = .3
-        self.lower_thr = .05
+        #rospy.loginfo("current dir is  %s ", os.path.realpath('.'))
+
+        tf.reset_default_graph()
+        config = tf.ConfigProto(
+           gpu_options = tf.GPUOptions(per_process_gpu_memory_fraction=0.4),
+           device_count = {'GPU': 1}
+        )
         
+        self.session = tf.Session(config=config);
+
+        save_file = './light_classification/mixNetI.ckpt.meta'
+        saver = tf.train.import_meta_graph(save_file)
+        saver.restore(self.session,tf.train.latest_checkpoint('./light_classification/'))
+
+        graph = tf.get_default_graph()
+        self.batch_x =  graph.get_tensor_by_name("batch_x:0")
+        self.keep_prob = graph.get_tensor_by_name("keep_prob:0")
+        self.out = graph.get_tensor_by_name("out:0")
+
+        #fc2 = MixNet(batch_x)
+
+        #saver = tf.train.Saver();
+        #saver.restore(self.session, save_file)
+        self.ans = tf.argmax(self.out, 1);
 
     def get_classification(self, image):
         """Determines the color of the traffic light in the image
@@ -19,26 +45,12 @@ class TLClassifier(object):
             int: ID of traffic light color (specified in styx_msgs/TrafficLight)
 
         """
-        #TODO implement light color prediction
-        blue_img    = image[:,:,0]
-        red_img     = image[:,:,1]
-        green_img   = image[:,:,2]
-        red_layer   = np.sum(red_img > .8*red_img.max())/float(red_img.size)
-        green_layer = np.sum(green_img > .8*green_img.max())/float(red_img.size)
-        blue_layer  = np.sum(blue_img > .8*blue_img.max())/float(red_img.size)
+        
+        #convert from BGR to RGB and normalize
+        img = (image.astype('float32')-127.)/255.;
+        a = self.session.run([self.ans], feed_dict={self.batch_x: [img],
+                                                    self.keep_prob: 1.0})
 
-        rospy.loginfo("Red: {}, Green: {}, Blue: {}, Shape: {}".format(red_layer, green_layer, blue_layer, red_img.size))
-
-
-        prediction = TrafficLight.UNKNOWN
-
-        if red_layer >= self.upper_thr and green_layer <= self.lower_thr:
-          prediction = TrafficLight.RED
-        elif red_layer <= self.lower_thr and green_layer <= self.lower_thr:
-          prediction = TrafficLight.YELLOW
-        elif green_layer >= self.upper_thr:
-          prediction = TrafficLight.GREEN
-        else:
-          prediction = TrafficLight.UNKNOWN
+        prediction = a[0]
           
         return prediction

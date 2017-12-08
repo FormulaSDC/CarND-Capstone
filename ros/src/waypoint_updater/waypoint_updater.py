@@ -192,8 +192,9 @@ class WaypointUpdater(object):
             if (self.car_state=="idle") and (self.red_light_wp < 0):
                 self.car_state = "go"
 
-            rospy.loginfo("car_state= %s, current_linear_velocity=%s", self.car_state,
-                          self.current_linear_velocity)
+            if (False):
+                rospy.loginfo("car_state= %s, current_linear_velocity=%s", self.car_state,
+                              self.current_linear_velocity)
 
             ####################################################################
             #  PART 2: SET VELOCITY IN "go" STATE
@@ -202,8 +203,9 @@ class WaypointUpdater(object):
             ## Set velocity in the "go" state
             if self.car_state == "go":
 
-                rospy.loginfo("************ %s",
-                              self.get_waypoint_velocity(myLane.waypoints[-1]))
+                if (False):
+                    rospy.loginfo("************ %s",
+                                  self.get_waypoint_velocity(myLane.waypoints[-1]))
 
                 # Constant mode : we set the speed to speed limit
                 if self.go_mode == "constant":

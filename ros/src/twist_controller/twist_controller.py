@@ -83,7 +83,8 @@ class Controller(object):
             brake = max(0., -torque)
             throttle = 0.0
 
-        rospy.loginfo("throttle : %s %s %s %s", throttle, curr_acc, cur_linear, tgt_linear)
+        if (False):
+            rospy.loginfo("throttle : %s %s %s %s", throttle, curr_acc, cur_linear, tgt_linear)
 
 
         # Return throttle, brake, steer

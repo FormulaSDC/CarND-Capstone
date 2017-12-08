@@ -155,6 +155,8 @@ class TLDetector(object):
         of times till we start using it. Otherwise the previous stable state is
         used.
         '''
+        if state == TrafficLight.YELLOW:
+            state = TrafficLight.RED;
         if self.state != state:
             self.state_count = 0
             self.state = state
@@ -233,7 +235,7 @@ class TLDetector(object):
         
         detection_res = self.cascade.detectMultiScale2(gray, 1.2, 1, 0,
                                              (16, 32),
-                                             (75, 150));
+                                             (100, 200));
         #return 0;
         detected = detection_res[0];
         images = [];
@@ -288,6 +290,9 @@ class TLDetector(object):
                     light_wp = stop_line_idx
         if (self.rosbag or idx_dist_min < 200):            
             light_state = self.get_light_state(light_idx)
+        
+        rospy.loginfo("light_state = %s", tlstates[light_state])
+    
         return light_wp, light_state
 
     # Euclidean distance.

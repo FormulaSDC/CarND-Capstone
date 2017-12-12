@@ -6,3 +6,6 @@ devel
 profile.tmp
 .idea
 Dockerfile
+
+data/real_data.record
+data/sim_data.record

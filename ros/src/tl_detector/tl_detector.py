@@ -26,8 +26,10 @@ class TLDetector(object):
         self.car_current_waypoint = None
         self.lights = []
         self.stop_line_indices = []
-        self.mode = 0  # 0 for development where we get the true light state
-                       # 1 for testing where we predict the light state from a classifier
+
+        self.mode = 0
+        # 0 for development where we get the true light state
+        # 1 for testing where we predict the light state from a classifier
 
         cascade_name = 'c16x32w30d2_3.xml'
         self.cascade = cv2.CascadeClassifier(cascade_name)
@@ -39,8 +41,8 @@ class TLDetector(object):
         sub4 = rospy.Subscriber('/current_waypoint', Int32, self.current_waypoint_cb)
 
         if self.mode == 0:
-            sub5 = rospy.Subscriber('/vehicle/traffic_lights', TrafficLightArray,
-                                self.traffic_cb)  # Color not available in real use.
+            # Color not available in real use.
+            sub5 = rospy.Subscriber('/vehicle/traffic_lights', TrafficLightArray, self.traffic_cb)
 
         '''
         /vehicle/traffic_lights provides you with the location of the traffic light in 3D map space and
@@ -112,7 +114,7 @@ class TLDetector(object):
         # closest to each stop line and light
         self.stop_light_states = [light.state for light in self.lights]
         # Output the list of states
-        # rospy.loginfo("Light states are: %s ", self.stop_light_states)
+        #rospy.loginfo("Light states are: %s ", self.stop_light_states)
 
     # Callback for /image_color topic
     def image_cb(self, msg):
@@ -141,7 +143,7 @@ class TLDetector(object):
             self.state = state
         elif self.state_count >= STATE_COUNT_THRESHOLD:
             self.last_state = self.state
-            light_wp = light_wp if state == TrafficLight.RED else -1
+            light_wp = light_wp if state != TrafficLight.GREEN else -1
             self.last_wp = light_wp
             self.upcoming_red_light_pub.publish(Int32(light_wp))
         else:
@@ -194,7 +196,7 @@ class TLDetector(object):
 
         # In testing mode, we predict the light state using a classifier
         else:
-            if (not self.has_image):
+            if not self.has_image:
                 self.prev_light_loc = None
                 return False
 
@@ -261,7 +263,6 @@ class TLDetector(object):
             detections = self.detect(cv_image)
 
             # TODO: determine active color
-
 
             # TODO find the closest visible traffic light (if one exists)
             # probably not required since successive lights are far enough?

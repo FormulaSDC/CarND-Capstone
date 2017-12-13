@@ -242,12 +242,11 @@ class TLDetector(object):
         detection_res = \
             self.cascade.detectMultiScale2(gray, 1.2, 1, 0, (16, 32), (100, 200))
 
-        #return 0;
         detected = detection_res[0]
-        images = []
+
         img_out = img.copy()
-        tl_color = TrafficLight.UNKNOWN
         colors_hist = np.zeros(TrafficLight.UNKNOWN+1, dtype=int)
+
         for result in detected:
             p0 = (result[0], result[1])
             p1 = (p0[0] + result[2], p0[1] + result[3])
@@ -261,9 +260,10 @@ class TLDetector(object):
             elif tl_color == TrafficLight.GREEN:
                 color = (0, 200, 0)
             cv2.rectangle(img_out, p0, p1, color, 2)
-            #images.append(tl_image);
+            #images.append(tl_image)
             colors_hist[tl_color] = colors_hist[tl_color] + 1
-        #special tweek to:
+
+        # special tweak to:
         #  - return TrafficLight.UNKNOWN if there were no 'real' lights
         #  - if any KNOWN light was detected, return it ()
         colors_hist[TrafficLight.UNKNOWN] = 1

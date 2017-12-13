@@ -22,7 +22,8 @@ class Controller(object):
         self.accel_limit = accel_limit
         self.decel_limit = decel_limit
         self.prev_vels = []
-        self.acc_pid = PID(5., 0.01, 0.01, -1., 1.)
+        self.acc_pid = PID(2., 0., 0., -1., 1.)
+        self.acc_filter = LowPassFilter(3., 1.)
         self.steer_filter = LowPassFilter(1., 1.)
         self.dbw_enabled = False
 
@@ -32,12 +33,13 @@ class Controller(object):
             if self.dbw_enabled:
                 self.dbw_enabled = False
                 self.acc_pid.reset()
+                self.acc_filter.reset()
                 self.steer_filter.reset()
                 self.prev_vels = []
             return 0., 0., 0.
 
         dt = 0.02  # in seconds (~ 50 Hz)
-        v = cur_linear
+        v = max(0., cur_linear)
         vel_error = tgt_linear - v
 
         # Get the angle from the yaw_controller
@@ -45,7 +47,8 @@ class Controller(object):
                                       self.max_lat_accel, self.max_steer_angle)
         steer_raw = yawcontroller.get_steering(tgt_linear, tgt_angular, cur_linear)
         steer = self.steer_filter.filt(steer_raw)
-        acc = self.acc_pid.step(vel_error, dt)
+        acc_raw = self.acc_pid.step(vel_error, dt)
+        acc = self.acc_filter.filt(acc_raw)
 
         # If dbw was just activated, we wait for the next call
         if not self.dbw_enabled:
@@ -58,19 +61,22 @@ class Controller(object):
         c_rr = .01 + 0.005 * pow(v / 28., 2)
         F_rr = c_rr * self.vehicle_mass * 9.8
         torque = (acc * self.vehicle_mass + F_drag + F_rr) * self.wheel_radius
-        max_torque = 500.
+        max_torque = 1000.
 
         # there is a constant bias of throttle we need to correct for
         torque -= 0.02 * max_torque
 
         if acc > 0:
-            throttle = min(.25, torque / max_torque)
+            throttle = min(.25, max(torque, 0.) / max_torque)
             brake = 0.
         else:
             brake = max(0., -torque)
+            # for idle state, we apply a small constant brake :
+            if tgt_linear < 0.01:
+                brake = 10.
             throttle = 0.0
 
-        rospy.loginfo("throttle : %s %s %s %s", throttle, acc, cur_linear, tgt_linear)
+        rospy.loginfo("throttle : %s %s %s %s", throttle, acc, cur_linear, brake)
 
         # Return throttle, brake, steer
         return throttle, brake, steer

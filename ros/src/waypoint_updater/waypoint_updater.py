@@ -39,26 +39,32 @@ class WaypointUpdater(object):
         self._current_pose = None
         self.red_light_wp = -1
         self.current_linear_velocity = -1.
-        self.speed_limit = rospy.get_param('/waypoint_loader/velocity') / 3.6
-        self.car_state = "go" # Possible states will be: go, stop, idle
-        self.go_mode = "constant" # Choices are "constant" and "gradual"
-                                  # "constant" sets all waypoints ahead to the desired speed
-                                  # "gradual" linearly increases the waypoint speed to the desired speed
-        self.stop_point = None # The waypoint by which the car needs to stop
-        self.stop_mode = "gradual" # Choices are "slam" and "gradual"
-                                # "slam" sets all the waypoints to a speed of zero once car goes into stop state
-                                # "gradual" linearly decreases the waypoint speed until it reaches zero at the stop_point
-        self.stop_test = "no" # Whether to test stopping at a particular waypoint rather than at stop lights
+        self.speed_limit = rospy.get_param('/waypoint_loader/velocity') / 3.6  # m/s
+        self.car_state = "go"  # Possible states will be: go, stop, idle
+
+        # Choices are "constant" and "gradual"
+        # "constant" sets all waypoints ahead to the desired speed
+        # "gradual" linearly increases the waypoint speed to the desired speed
+        self.go_mode = "gradual"
+        self.stop_point = None  # The waypoint by which the car needs to stop
+
+        # Choices are "slam" and "gradual"
+        # "slam" sets all the waypoints to a speed of zero once car goes into stop state
+        # "gradual" linearly decreases the waypoint speed until it reaches zero at the stop_point
+        self.stop_mode = "gradual"
+        self.stop_test = "no"  # Whether to test stopping at a particular waypoint rather than at stop lights
         self.max_acc = 1.  # in m/s^2
-        self.find_nearest_wp = self.find_nearest_basic  # choices are self.find_nearest_basic and self.find_nearest
-                                                        # self.find_nearest_basic is borrowed from Udacity lessons
-                                                        # self.nearest is Paul's more sophisticated method
+
+        # choices are self.find_nearest_basic and self.find_nearest
+        # self.find_nearest_basic is borrowed from Udacity lessons
+        # self.nearest is Paul's more sophisticated method
+        self.find_nearest_wp = self.find_nearest_basic
 
         # Current position:
         rospy.Subscriber('/current_pose', PoseStamped, self.pose_cb)
 
         # Current velocity
-        rospy.Subscriber('/current_velocity', TwistStamped , self.current_velocity_cb)
+        rospy.Subscriber('/current_velocity', TwistStamped, self.current_velocity_cb)
 
         # Base waypoints: are for the entire track and are only published once
         rospy.Subscriber('/base_waypoints', Lane, self.waypoints_cb)
@@ -93,7 +99,7 @@ class WaypointUpdater(object):
             ####################################################################
 
             # Find the nearest waypoint
-            self._nearest = self.find_nearest_wp(self._current_pose , self._base_waypoints)
+            self._nearest = self.find_nearest_wp(self._current_pose, self._base_waypoints)
             rospy.loginfo("nearest waypoint index = %s", self._nearest)
 
             # Create the lane object to be published as final_waypoints
@@ -105,14 +111,14 @@ class WaypointUpdater(object):
             myLane.header.frame_id = '/world'
 
             # Initialize variables
-            wp = [] # List of the waypoint indices corresponding to i
+            wp = []  # List of the waypoint indices corresponding to i
             myLane.waypoints = []
 
             # Loop through the waypoints to create/update
             for i in range(LOOKAHEAD_WPS):
 
                 # Populate the waypoint list
-                if i==0:
+                if i == 0:
                     # The first waypoint is just the nearest
                     index = self._nearest
 
@@ -120,7 +126,7 @@ class WaypointUpdater(object):
                     self.waypoint_index_pub.publish(Int32(index))
                 else:
                     # Then we increment from there
-                    index = self.next_waypoint( index, len(self._base_waypoints) )
+                    index = self.next_waypoint(index, len(self._base_waypoints))
                 wp.append(index)
 
                 # Copy in the relevant waypoint
@@ -134,13 +140,13 @@ class WaypointUpdater(object):
             ####################################################################
 
             # From the "go" state we can only stop
-            if self.car_state=="go":
+            if self.car_state == "go":
 
                 # If in testing mode
                 if self.stop_test == "yes":
 
                     # Stop at waypoint 400
-                    if wp[0]==400:
+                    if wp[0] == 400:
                         self.car_state = "stop"
                         self.stop_point = 450
 
@@ -175,21 +181,21 @@ class WaypointUpdater(object):
                         # and the light changes from green to yellow, we just continue
                         if EASY_DECEL < deceleration < HARD_DECEL:
                             self.car_state = "stop"
-                            self.stop_point=self.red_light_wp
+                            self.stop_point = self.red_light_wp
 
-            ## From the "stop" state we can either go to "idle" or "go"
-            if self.car_state=="stop":
+            # From the "stop" state we can either go to "idle" or "go"
+            if self.car_state == "stop":
 
                 # Go to idle when velocity is essentially zero
                 if self.current_linear_velocity <= 0.01:
                     self.car_state = "idle"
 
                 # Go back to go if there is no red light ahead
-                elif (self.red_light_wp < 0):
+                elif self.red_light_wp < 0:
                     self.car_state = "go"
 
-            ## From the "idle" state we can only return to "go" once the light turns green
-            if (self.car_state=="idle") and (self.red_light_wp < 0):
+            # From the "idle" state we can only return to "go" once the light turns green
+            if (self.car_state == "idle") and (self.red_light_wp < 0):
                 self.car_state = "go"
 
             if (False):
@@ -200,7 +206,7 @@ class WaypointUpdater(object):
             #  PART 2: SET VELOCITY IN "go" STATE
             ####################################################################
 
-            ## Set velocity in the "go" state
+            # Set velocity in the "go" state
             if self.car_state == "go":
 
                 if (False):
@@ -211,34 +217,37 @@ class WaypointUpdater(object):
                 if self.go_mode == "constant":
                     for i in range(LOOKAHEAD_WPS):
                         self.set_waypoint_velocity(myLane.waypoints, i, self.speed_limit)
-                # Gradual mode: increment the velocity by self.max_accelleration until it exceeds the target speed
+                # Gradual mode: increment the velocity by max acc until it exceeds the target speed
+                # using equation of motion : v^2 = u^2 + 2 * a * s
+                # v = final velocity (just below speed limit)
+                # u = initial velocity
+                # a = max acceleration = self.max_acc
+                # s = distance travelled
                 if self.go_mode == "gradual":
                     # default target velocity
                     target_velocity = self.get_waypoint_velocity(self._base_waypoints[wp[-1]])
 
-                    # Initialize the velocity with the current velocity
+                    # Increment the velocity at nearest waypoint to 10% of current velocity
+                    # or at least 1 mph, but making sure to stay within the speed limit
                     # rospy.loginfo("current velocity is %s", self.current_linear_velocity)
-                    new_velocity = self.current_linear_velocity
+                    v = self.current_linear_velocity
+                    v = max(1.1 * v, v + ONE_MPH)
+                    v = min(v, self.speed_limit - ONE_MPH)
 
                     # Loop
                     for i in range(LOOKAHEAD_WPS):
 
+                        # Set the new velocity
+                        self.set_waypoint_velocity(myLane.waypoints, i, v)
+
                         # Calculate distance between successive waypoints
-                        if i<LOOKAHEAD_WPS-1:
+                        dist = 0.
+                        if i < LOOKAHEAD_WPS-1:
                             dist = self.distance(self._base_waypoints, wp[i], wp[i+1])
 
-                        # Calculate the new velocity
-                        new_velocity_sq = new_velocity * new_velocity
-                        new_velocity_sq += self.max_acc * dist
-                        if new_velocity_sq < 1.:
-                           new_velocity = 1.
-                        else:
-                            new_velocity = math.sqrt(new_velocity_sq)
-                        if new_velocity > target_velocity:
-                            new_velocity = target_velocity
-
-                        # Set the new velocity
-                        self.set_waypoint_velocity(myLane.waypoints, i, new_velocity)
+                        v_sq = v * v + 2. * self.max_acc * dist
+                        v = math.sqrt(max(0., v_sq))
+                        v = min(v, self.speed_limit - ONE_MPH)
 
                         # Logging
                         # rospy.loginfo("velocity of waypoint %s (i=%s) set to %s", wp[i], i, new_velocity)
@@ -247,7 +256,7 @@ class WaypointUpdater(object):
             #  PART 3: SET VELOCITY IN "stop" STATE
             ####################################################################
 
-            ## Set velocity in the "stop" state
+            # Set velocity in the "stop" state
             elif self.car_state == "stop":
 
                 # Slam mode
@@ -259,7 +268,7 @@ class WaypointUpdater(object):
                 elif self.stop_mode == "gradual":
 
                     # Calculate distance to the stop point
-                    total_dist = self.distance(self._base_waypoints, wp[0],self.stop_point)
+                    total_dist = self.distance(self._base_waypoints, wp[0], self.stop_point)
                     v_max = min(self.current_linear_velocity, self.speed_limit)
                     safe_braking_dist = max(SAFE_DIST, .5 * v_max * v_max / EASY_DECEL)
 
@@ -308,7 +317,7 @@ class WaypointUpdater(object):
             #  PART 4: SET VELOCITY IN "idle" STATE
             ####################################################################
 
-            ## Set velocity in the "idle" state
+            # Set velocity in the "idle" state
             elif self.car_state == "idle":
                 for i in range(LOOKAHEAD_WPS):
                     self.set_waypoint_velocity(myLane.waypoints, i, 0.0)
@@ -333,7 +342,7 @@ class WaypointUpdater(object):
         self.n_base_wps = len(self._base_waypoints)
 
     # Callback function for current_velocity
-    def current_velocity_cb(self,msg):
+    def current_velocity_cb(self, msg):
         self.current_linear_velocity = msg.twist.linear.x # meters per second
 
     # Find the nearest waypoint (basic algorithm borrowed from Udacity lesson)

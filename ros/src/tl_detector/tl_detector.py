@@ -31,9 +31,9 @@ class TLDetector(object):
         self.lights = []
         self.stop_line_indices = []
 
-        self.mode = 0
+        self.mode = 1
         # 0 for development where we get the true light state
-                       # 1 for testing where we predict the light state from a classifier
+        # 1 for testing where we predict the light state from a classifier
 
         self.state = TrafficLight.UNKNOWN
         config_string = rospy.get_param("/traffic_light_config")
@@ -224,9 +224,9 @@ class TLDetector(object):
                 return color;
 
             else:
-            if not self.has_image:
-                self.prev_light_loc = None
-                return TrafficLight.UNKNOWN
+                if (not self.has_image):
+                    self.prev_light_loc = None
+                    return TrafficLight.UNKNOWN
 
             return tl_color
 

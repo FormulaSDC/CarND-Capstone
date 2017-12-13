@@ -91,6 +91,7 @@ config = tf.ConfigProto(
    device_count = {'GPU': 1}
 )
     
+save_file = './mixNetI-1.ckpt'
     
 with tf.Session(config=config) as sess:
     sess.run(tf.global_variables_initializer())
@@ -117,6 +118,7 @@ with tf.Session(config=config) as sess:
         print("Learning rate", "%.9f" % sess.run(learning_rate))
         print()
     
+    print ("Saving %s" % save_file);
     saver.save(sess,save_file)    
 
     # Evaluate on the test data

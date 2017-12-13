@@ -21,7 +21,8 @@ import cv2
 from augment import *
 
 #%%
-baseDir = 'F:/Datasets/Udacity/TL'
+#baseDir = 'F:/Datasets/Udacity/TL-1'
+baseDir = '/media/D/DIZ/CarND/capstone/my code/scripts'
 
 #%%
 classes = os.listdir(baseDir)
@@ -60,12 +61,12 @@ for c in range(nClasses):
 import pickle
 write = False
 if (write):
-    pickle.dump(dClasses, open(baseDir+"/../dClasses.p",'wb'))
+    pickle.dump(dClasses, open(baseDir+"/../dClasses-1.p",'wb'))
     dSets = SplitSet(dClasses, 0.01, 0.1, 0)
-    pickle.dump(dSets, open(baseDir+"/../dSets.p",'wb'))
+    pickle.dump(dSets, open(baseDir+"/../dSets-1.p",'wb'))
 else:
-    dClasses = pickle.load(open(baseDir+"/../dClasses.p",'rb'))
-    dSets = pickle.load(open(baseDir+"/../dSets.p",'rb'))
+    dClasses = pickle.load(open(baseDir+"/../dClasses-1.p",'rb'))
+    dSets = pickle.load(open(baseDir+"/../dSets-1.p",'rb'))
     
     
 #%%
@@ -115,7 +116,7 @@ import pickle
 
 baseDir = '/media/D/DIZ/CarND/capstone/my code/scripts'
 
-S = pickle.load(open(baseDir+"/../TrnValgn.p",'rb'))
+S = pickle.load(open(baseDir+"/../TrnValgn-1.p",'rb'))
 lenTrn = len(S['Y_t'])
 lenVal = len(S['Y_v'])
 

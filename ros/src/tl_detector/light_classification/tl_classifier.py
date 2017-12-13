@@ -20,7 +20,7 @@ class TLClassifier(object):
         
         self.session = tf.Session(config=config);
 
-        save_file = './light_classification/mixNetI.ckpt.meta'
+        save_file = './light_classification/mixNetI-1.ckpt.meta'
         saver = tf.train.import_meta_graph(save_file)
         saver.restore(self.session,tf.train.latest_checkpoint('./light_classification/'))
 

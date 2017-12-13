@@ -47,7 +47,7 @@ class TLDetector(object):
         self.last_wp = -1
         self.state_count = 0
 
-        self.cascade_name = 'cComb16x32LBPw30d2_3.xml'
+        self.cascade_name = 'cNewBag16x32LBPw30d2_3.xml'
         self.cascade = cv2.CascadeClassifier(self.cascade_name)
 
         # Subscribe
@@ -55,7 +55,8 @@ class TLDetector(object):
         sub2 = rospy.Subscriber('/base_waypoints', Lane, self.waypoints_cb)
         sub3 = rospy.Subscriber('/image_color', Image, self.image_cb)
         #to read raw images from rosbags
-        sub3_1 = rospy.Subscriber('/image_raw', Image, self.rosbag_cb)
+        #  - remove for new bag ('cause it contains image_color)
+        #sub3_1 = rospy.Subscriber('/image_raw', Image, self.rosbag_cb)
         sub4 = rospy.Subscriber('/current_waypoint', Int32, self.current_waypoint_cb)
 
         if self.mode == 0:

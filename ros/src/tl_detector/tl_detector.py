@@ -16,9 +16,7 @@ import numpy as np
 MIN_DIST_TL = 200.  # Traffic lights farther than this distance are ignored
 STATE_COUNT_THRESHOLD = 3
 SAVE_FRAMES = False
-
-
-tlstates = ['RED', 'YELLOW', 'GREEN', 'UNKNOWN', 'UNKNOWN']
+TL_STATES = ['RED', 'YELLOW', 'GREEN', 'UNKNOWN']
 
 
 class TLDetector(object):
@@ -32,6 +30,7 @@ class TLDetector(object):
         self.lights = []
         self.stop_line_indices = []
         self.stop_light_states = None
+        self.has_image = False
 
         self.mode = 1
         # 0 for development where we get the true traffic light state
@@ -59,18 +58,16 @@ class TLDetector(object):
         sub2 = rospy.Subscriber('/base_waypoints', Lane, self.waypoints_cb)
         sub3 = rospy.Subscriber('/image_color', Image, self.image_cb)
 
-        # To read raw images from rosbags
-        # New rosbags now use the topic /image_color instead of /image_raw
-        # Hence, self.image_cb suffices for both development and testing modes
+        # To read raw images from rosbags :
+        # Note : This is not required as we read images from /image_color
         # sub3_1 = rospy.Subscriber('/image_raw', Image, self.rosbag_cb)
+        self.raw_image = False
+        
         sub4 = rospy.Subscriber('/current_waypoint', Int32, self.current_waypoint_cb)
 
         if self.mode == 0:
             # Color not available in real use. Only for development mode
             sub5 = rospy.Subscriber('/vehicle/traffic_lights', TrafficLightArray, self.traffic_cb)
-
-        self.rosbag = False
-
         '''
         /vehicle/traffic_lights provides you with the location of the traffic light in 3D map space and
         helps you acquire an accurate ground truth data source for the traffic light
@@ -133,7 +130,7 @@ class TLDetector(object):
         # Get the image
         self.has_image = True
         self.camera_image = msg
-        self.rosbag = True
+        self.raw_image = True
         # Get the waypoint index of the next light (light_wp) and its state
         light_wp, state = self.process_traffic_lights()
 
@@ -149,7 +146,7 @@ class TLDetector(object):
         # Get the image
         self.has_image = True
         self.camera_image = msg
-        self.rosbag = False
+        self.raw_image = False
         
         # Get the waypoint index of the next light (light_wp) and its state
         light_wp, state = self.process_traffic_lights()
@@ -160,8 +157,10 @@ class TLDetector(object):
         of times till we start using it. Otherwise the previous stable state is
         used.
         '''
+        # treat yellow as red for stopping purposes
         if state == TrafficLight.YELLOW:
             state = TrafficLight.RED
+
         if self.state != state:
             self.state_count = 0
             self.state = state
@@ -232,9 +231,9 @@ class TLDetector(object):
     def detect(self, image):
         """Detects traffic lights
         Args:
-            image: array of shape (?, ?, 3)
+            image: image in BGR format
         Returns:
-            array of detected TLs
+            color of the traffic light
         """
         img = cv2.resize(image, (640, 480))
         gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
@@ -294,10 +293,10 @@ class TLDetector(object):
                     light_idx = i
                     idx_dist_min = idx_dist
                     light_wp = stop_line_idx
-        if self.rosbag or idx_dist_min < MIN_DIST_TL:
+        if self.raw_image or idx_dist_min < MIN_DIST_TL:
             light_state = self.get_light_state(light_idx)
         
-        rospy.loginfo("light_state = %s", tlstates[light_state])
+        rospy.loginfo("light_state = %s", TL_STATES[light_state])
         return light_wp, light_state
 
     # Euclidean distance.

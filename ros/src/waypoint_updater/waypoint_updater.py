@@ -406,11 +406,11 @@ class WaypointUpdater(object):
             base_x = base[i].pose.pose.position.x
             base_y = base[i].pose.pose.position.y
             dist = self.dist(cur_x,base_x,cur_y,base_y)
-            if i==0:
-                mindist=dist
+            if i == 0:
+                mindist = dist
                 minpt=0
             else:
-                if dist<mindist:
+                if dist < mindist:
                     mindist=dist
                     minpt=i
 
@@ -420,17 +420,17 @@ class WaypointUpdater(object):
 
         # Get the distance from the closest waypoint to the next and previous waypoints
         d_wp_next = self.dist(base[minpt].pose.pose.position.x, base[nextpt].pose.pose.position.x,
-                            base[minpt].pose.pose.position.x, base[nextpt].pose.pose.position.x)
+                              base[minpt].pose.pose.position.x, base[nextpt].pose.pose.position.x)
         d_wp_prev = self.dist(base[minpt].pose.pose.position.x, base[prevpt].pose.pose.position.x,
-                            base[minpt].pose.pose.position.x, base[prevpt].pose.pose.position.x)
+                              base[minpt].pose.pose.position.x, base[prevpt].pose.pose.position.x)
 
         # Get the distance from the car to the three (nearest, next, and previous) waypoints
-        d_car_near = self.dist( cur_x, base[minpt].pose.pose.position.x,
-                              cur_y, base[minpt].pose.pose.position.y  )
-        d_car_next = self.dist( cur_x, base[nextpt].pose.pose.position.x,
-                              cur_y, base[nextpt].pose.pose.position.y )
-        d_car_prev = self.dist( cur_x, base[prevpt].pose.pose.position.x,
-                              cur_y, base[prevpt].pose.pose.position.y )
+        d_car_near = self.dist(cur_x, base[minpt].pose.pose.position.x,
+                               cur_y, base[minpt].pose.pose.position.y)
+        d_car_next = self.dist(cur_x, base[nextpt].pose.pose.position.x,
+                               cur_y, base[nextpt].pose.pose.position.y)
+        d_car_prev = self.dist(cur_x, base[prevpt].pose.pose.position.x,
+                               cur_y, base[prevpt].pose.pose.position.y)
 
         # Get the distance to move -- minimum of all the previous distances calculated
         d_move = min( d_wp_next, d_wp_prev, d_car_near, d_car_next, d_car_prev )
@@ -440,19 +440,19 @@ class WaypointUpdater(object):
         q_x = cur.orientation.x
         q_y = cur.orientation.y
         q_z = cur.orientation.z
-        roll = self.quaternion_to_euler_angle(q_w,q_x,q_y,q_z)
-        #rospy.logdebug("roll = %s" , roll )
+        roll = self.quaternion_to_euler_angle(q_w, q_x, q_y, q_z)
+        # rospy.logdebug("roll = %s" , roll )
 
         # Project the car forward
-        new_x, new_y = self.project_fwd( cur_x, cur_y, roll, d_move )
+        new_x, new_y = self.project_fwd(cur_x, cur_y, roll, d_move)
 
         # Calculate new distances from car to waypoints
-        d_new_near = self.dist( new_x, base[minpt].pose.pose.position.x,
-                              new_y, base[minpt].pose.pose.position.y  )
-        d_new_next = self.dist( new_x, base[nextpt].pose.pose.position.x,
-                              new_y, base[nextpt].pose.pose.position.y )
-        d_new_prev = self.dist( new_x, base[prevpt].pose.pose.position.x,
-                              new_y, base[prevpt].pose.pose.position.y )
+        d_new_near = self.dist(new_x, base[minpt].pose.pose.position.x,
+                               new_y, base[minpt].pose.pose.position.y)
+        d_new_next = self.dist(new_x, base[nextpt].pose.pose.position.x,
+                               new_y, base[nextpt].pose.pose.position.y)
+        d_new_prev = self.dist(new_x, base[prevpt].pose.pose.position.x,
+                               new_y, base[prevpt].pose.pose.position.y)
 
         # Calculate differences in distances... which waypoint, if any, did we
         # get closer to by driving forward a small amount?
@@ -461,7 +461,7 @@ class WaypointUpdater(object):
         d_dif_prev = d_car_prev - d_new_prev
 
         # Check which waypoint we got closer to, if any.
-        if d_dif_near<0 and d_dif_next<0 and d_dif_prev<0:
+        if d_dif_near < 0 and d_dif_next < 0 and d_dif_prev < 0:
             # Degnerate case... the waypoints get further away by driving
             # so just return the closest waypoint
             return minpt

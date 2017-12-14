@@ -11,8 +11,24 @@
 | Matthias von dem Knesebeck | mail@knesebeck.com       |
 
 
+### Overview
+Following were the main objectives of this project : 
+
+* Smoothly follow waypoints in the simulator. 
+* Respect the target top speed. 
+* Stop at traffic lights when needed.
+* Stop and restart controllers when DBW is disables/enabled.
+* Publish throttle, steering, and brake commands at 50 Hz.
+
+To achieve these objectives, we implemented a finite state machine consisting of 3 states : (i) `go` state,  (ii) `stop` state, and (iii) `idle` state. In the absence of a traffic light or if the light is green, the state is set to `go` with target speed set to the speed limit while ensuring that the transition from current to target speed is smooth. If a red or yellow traffic light is detected, state is set to `stop` if it is possible to bring the car to halt without exceeding maximum braking. Again, a smooth transition is implemented from current speed to 0. Once the car has come to halt, state is changed to `idle`. The speed in `idle` state is set to zero and the car remains in this state until the light turns green and car goes back to `go` state.  For yaw control, we have used `YawController` already provided while for throttle, we used a proportional controller which takes as input the error in speed.   
+
 ### Traffic Light Detection
 The traffic light detection has been realized by implementing a Cascade Classifier. Once a traffic light has been identified, the bounding box is scaled to a 16x32 pixel image. This image is then supplied to a color detection neural network that was trained with numerous examples from the labeled Bosch Traffic Light Dataset as well as samples from the Udacity simulation track. This network returns the color with the highest resulting probability identified. The Traffic Light Detector then publishes the traffic light waypoint once at least 3 consecutive images have been identified with the same color.
+
+### Results 
+
+Car was able to successfully complete track lap while meeting all the objectives. Here is a video demonstration on simulator track:
+[![Simulator](http://img.youtube.com/vi/9MybAoVeOkI/0.jpg)](http://www.youtube.com/watch?v=9MybAoVeOkI "Simulator")
 
 The results are presented in the following image samples from the simulator track. The bounding boxes show the detected colors:
 
@@ -24,49 +40,6 @@ The results are presented in the following image samples from the simulator trac
 
 #### Detection Result for "Red" Traffic Light 
 <img src="imgs/screenshot_red.png" width="300">
-
-
-
-
-
-### Notes for the 20171208 commit to 'detection' branch
-1. Traffic Light (TL) detection is enabled only if distance to the next 
-TL is < 200 (or if we are reading images from the rosbag)
-
-2. image_raw handler moved to the separate callback (to enable TL detection)
-3. simple DNN (scripts/MixNet.py) for TL classification (accuracy 0.95 on val. set)
-4. colored rectangles for detected TLs 
-5. I've suppressed a couple of log messages 
-in twist_controller\twist_controller.py
-and waypoint_updater\waypoint_updater.py
-with if (False):
-
-I've tested on old simulator: it works, but it stops not on every red light, and
-it always stops after 6600 waitpoints (even in mode 0, without detection).
-On rosbags, it detects TL almost always.
-
-
-
-### Notes for the 'detection' branch
-
-I've modified tl_detector.py only_
-1. line 40 - subscription for the '/image_raw' topic to use rosbag recordings
-(with the same callback)
-
-2. get_light_state in mode 1 only detects lights, it calls get_classification(),
-bu6t always returns TrafficLight.UNKNOWN
-
-
-3. detect(lines 216-234): I reduce image size to 720x540 and use rather large scale step (1.2).
-I would prefer larger image and smaller step - but even these settings signioficantly affect vehicle dynamics.
-**Is it possible to decouple detection from the control???**
-
-
-4. process_traffic_lights now works in both modes to get light_wp.
-How should we get light_wp on real car?
-
-5. Collected images are at the https://www.dropbox.com/s/70kd715cuidi3hx/tl-detected.zip
-
 
 
 

@@ -244,7 +244,7 @@ class TLDetector(object):
 
         detected = detection_res[0]
 
-        img_out = img.copy()
+        img_out = img.copy() if DISPLAY_DETS else None
         colors_hist = np.zeros(TrafficLight.UNKNOWN+1, dtype=int)
 
         for result in detected:
@@ -252,15 +252,15 @@ class TLDetector(object):
             p1 = (p0[0] + result[2], p0[1] + result[3])
             tl_image = cv2.resize(img[p0[1]:p1[1], p0[0]:p1[0], :], (16, 32))
             tl_color = self.light_classifier.get_classification(tl_image)
-            color = (250, 250, 250)
-            if tl_color == TrafficLight.RED:
-                color = (200, 0, 0)
-            elif tl_color == TrafficLight.YELLOW:
-                color = (200, 200, 0)
-            elif tl_color == TrafficLight.GREEN:
-                color = (0, 200, 0)
-            cv2.rectangle(img_out, p0, p1, color, 2)
-            #images.append(tl_image)
+            if DISPLAY_DETS:
+                color = (250, 250, 250)
+                if tl_color == TrafficLight.RED:
+                    color = (200, 0, 0)
+                elif tl_color == TrafficLight.YELLOW:
+                    color = (200, 200, 0)
+                elif tl_color == TrafficLight.GREEN:
+                    color = (0, 200, 0)
+                cv2.rectangle(img_out, p0, p1, color, 2)
             colors_hist[tl_color] = colors_hist[tl_color] + 1
 
         # special tweak to:
@@ -272,6 +272,7 @@ class TLDetector(object):
         # display detection results
         if DISPLAY_DETS:
             img_out = cv2.cvtColor(img_out, cv2.COLOR_RGB2BGR)
+            img_out = cv2.resize(img_out, None, fx=.5, fy=.5)
             cv2.imshow("detected", img_out)
             cv2.waitKey(1)
 

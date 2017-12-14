@@ -14,9 +14,10 @@ import math
 import numpy as np
 
 MIN_DIST_TL = 200.  # Traffic lights farther than this distance are ignored
-STATE_COUNT_THRESHOLD = 3
+STATE_COUNT_THRESHOLD = 3  # require at least these many detections
+DISPLAY_DETS = False  # Display detections on frames for debug
 SAVE_FRAMES = False
-TL_STATES = ['RED', 'YELLOW', 'GREEN', 'UNKNOWN']
+TL_STATES = ['RED', 'YELLOW', 'GREEN', 'UNKNOWN', 'UNKNOWN']
 
 
 class TLDetector(object):
@@ -267,10 +268,13 @@ class TLDetector(object):
         #  - if any KNOWN light was detected, return it ()
         colors_hist[TrafficLight.UNKNOWN] = 1
         result = np.argmax(colors_hist)
-        
-        img_out = cv2.cvtColor(img_out, cv2.COLOR_RGB2BGR)
-        cv2.imshow("detected", img_out)
-        cv2.waitKey(1)
+
+        # display detection results
+        if DISPLAY_DETS:
+            img_out = cv2.cvtColor(img_out, cv2.COLOR_RGB2BGR)
+            cv2.imshow("detected", img_out)
+            cv2.waitKey(1)
+
         return result
 
     def process_traffic_lights(self):

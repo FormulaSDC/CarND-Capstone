@@ -21,21 +21,18 @@ class Controller(object):
         self.wheel_radius = wheel_radius
         self.accel_limit = accel_limit
         self.decel_limit = decel_limit
-        self.prev_vels = []
-        self.acc_pid = PID(2., 0., 0., -1., 1.)
+        self.acc_pid = PID(2.5, 0., 0., -1., 1.)
         self.acc_filter = LowPassFilter(3., 1.)
         self.steer_filter = LowPassFilter(1., 1.)
         self.dbw_enabled = False
 
-    def control(self, tgt_linear, tgt_angular, cur_linear,
-                cur_angular, dbw_enabled):
+    def control(self, tgt_linear, tgt_angular, cur_linear, cur_angular, dbw_enabled):
         if not dbw_enabled:
             if self.dbw_enabled:
                 self.dbw_enabled = False
                 self.acc_pid.reset()
                 self.acc_filter.reset()
                 self.steer_filter.reset()
-                self.prev_vels = []
             return 0., 0., 0.
 
         dt = 0.02  # in seconds (~ 50 Hz)

@@ -1,3 +1,34 @@
+## Udacity Self-Driving Car Nanodegree
+## Capstone Project
+
+### Team FormulaSDC
+| Name                       | Email                    |
+|:---------------------------|:-------------------------|
+| Prerit Jaiswal             | prerit.jaiswal@gmail.com |
+| Anton Varfolomeev          | dizvara@gmail.com        |
+| Kemal Tepe                 | ketepe@gmail.com         |
+| Paul Walker                | n43tc3d2rp-u1@yahoo.com  |
+| Matthias von dem Knesebeck | mail@knesebeck.com       |
+
+
+### Traffic Light Detection
+The traffic light detection has been realized by implementing a Cascade Classifier. Once a traffic light has been identified, the bounding box is scaled to a 16x32 pixel image. This image is then supplied to a color detection neural network that was trained with numerous examples from the labeled Bosch Traffic Light Dataset as well as samples from the Udacity simulation track. This network returns the color with the highest resulting probability identified. The Traffic Light Detector then publishes the traffic light waypoint once at least 3 consecutive images have been identified with the same color.
+
+The results are presented in the following image samples from the simulator track. The bounding boxes show the detected colors:
+
+#### Detection Result for "Green" Traffic Light 
+<img src="imgs/screenshot_green.png" width="300" >
+
+#### Detection Result for "Yellow" Traffic Light 
+<img src="imgs/screenshot_yellow.png" width="300">
+
+#### Detection Result for "Red" Traffic Light 
+<img src="imgs/screenshot_red.png" width="300">
+
+
+
+
+
 ### Notes for the 20171208 commit to 'detection' branch
 1. Traffic Light (TL) detection is enabled only if distance to the next 
 TL is < 200 (or if we are reading images from the rosbag)

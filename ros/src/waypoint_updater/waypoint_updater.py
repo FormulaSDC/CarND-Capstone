@@ -32,7 +32,7 @@ class WaypointUpdater(object):
     def __init__(self):
 
         rospy.init_node('waypoint_updater')
-        rospy.loginfo('WaypointUpdater: __init__ starting')
+        rospy.logdebug('WaypointUpdater: __init__ starting')
 
         # Initialize local variables
         self._base_waypoints = None
@@ -87,7 +87,7 @@ class WaypointUpdater(object):
     # Looping instead of spinning
     def loop(self):
         rate = rospy.Rate(10)
-        # rospy.loginfo("starting loop with car_state=%s and publishing rate=%s ", self.car_state, rate)
+        # rospy.logdebug("starting loop with car_state=%s and publishing rate=%s ", self.car_state, rate)
 
         # Loop when certain conditions are met
         while not rospy.is_shutdown():
@@ -100,7 +100,7 @@ class WaypointUpdater(object):
 
             # Find the nearest waypoint
             self._nearest = self.find_nearest_wp(self._current_pose, self._base_waypoints)
-            rospy.loginfo("nearest waypoint index = %s", self._nearest)
+            rospy.logdebug("nearest waypoint index = %s", self._nearest)
 
             # Create the lane object to be published as final_waypoints
             myLane = Lane()
@@ -173,7 +173,7 @@ class WaypointUpdater(object):
                         if 0. < total_dist < safe_braking_dist:
                             v = self.current_linear_velocity
                             deceleration = .5 * v * v / total_dist
-                        rospy.loginfo("There is a red light ahead: total_dist=%s, deceleration=%s",
+                        rospy.logdebug("There is a red light ahead: total_dist=%s, deceleration=%s",
                                       total_dist, deceleration)
 
                         # If the deceleration required is beyond a threshold, we don't stop!
@@ -198,9 +198,9 @@ class WaypointUpdater(object):
             if (self.car_state == "idle") and (self.red_light_wp < 0):
                 self.car_state = "go"
 
-            if (False):
-                rospy.loginfo("car_state= %s, current_linear_velocity=%s", self.car_state,
-                              self.current_linear_velocity)
+            if False:
+                rospy.logdebug("car_state= %s, current_linear_velocity=%s",
+                               self.car_state, self.current_linear_velocity)
 
             ####################################################################
             #  PART 2: SET VELOCITY IN "go" STATE
@@ -209,8 +209,8 @@ class WaypointUpdater(object):
             # Set velocity in the "go" state
             if self.car_state == "go":
 
-                if (False):
-                    rospy.loginfo("************ %s",
+                if False:
+                    rospy.logdebug("************ %s",
                                   self.get_waypoint_velocity(myLane.waypoints[-1]))
 
                 # Constant mode : we set the speed to speed limit
@@ -229,7 +229,7 @@ class WaypointUpdater(object):
 
                     # Increment the velocity at nearest waypoint to 10% of current velocity
                     # or at least 1 mph, but making sure to stay within the speed limit
-                    # rospy.loginfo("current velocity is %s", self.current_linear_velocity)
+                    # rospy.logdebug("current velocity is %s", self.current_linear_velocity)
                     v = self.current_linear_velocity
                     v = max(1.1 * v, v + ONE_MPH)
                     v = min(v, self.speed_limit - ONE_MPH)
@@ -250,7 +250,8 @@ class WaypointUpdater(object):
                         v = min(v, self.speed_limit - ONE_MPH)
 
                         # Logging
-                        # rospy.loginfo("velocity of waypoint %s (i=%s) set to %s", wp[i], i, new_velocity)
+                        # rospy.logdebug("velocity of waypoint %s (i=%s) set to %s",
+                        #                wp[i], i, new_velocity)
 
             ####################################################################
             #  PART 3: SET VELOCITY IN "stop" STATE
@@ -280,7 +281,7 @@ class WaypointUpdater(object):
                     if 0. < total_dist < safe_braking_dist:
                         deceleration = .5 * v * v / total_dist + EASY_DECEL
                         v = max(v - ONE_MPH, 0.9 * v)
-                    # rospy.loginfo("decelleration=%s",decelleration)
+                    # rospy.logdebug("decelleration=%s",decelleration)
 
                     # Initialize flag indicating when the velocity must be zero
                     target_reached = False
@@ -311,7 +312,8 @@ class WaypointUpdater(object):
                         # Set the new velocity
                         self.set_waypoint_velocity(myLane.waypoints, i, v)
                         # Logging
-                        # rospy.loginfo("velocity of waypoint %s (i=%s) set to %s", wp[i], i, new_velocity)
+                        # rospy.logdebug("velocity of waypoint %s (i=%s) set to %s",
+                        #                wp[i], i, new_velocity)
 
             ####################################################################
             #  PART 4: SET VELOCITY IN "idle" STATE
@@ -329,15 +331,15 @@ class WaypointUpdater(object):
             rate.sleep()
 
     def pose_cb(self, msg):
-        #rospy.loginfo('WaypointUpdater: pose_cb starting')
+        #rospy.logdebug('WaypointUpdater: pose_cb starting')
 
         # Get the current position
         self._current_pose = msg.pose
-        #rospy.loginfo("_current_pose: %s", self._current_pose)
+        #rospy.logdebug("_current_pose: %s", self._current_pose)
 
     # Gets the waypoints
     def waypoints_cb(self, waypoints):
-        #rospy.loginfo('WaypointUpdater: waypoints_cb starting')
+        #rospy.logdebug('WaypointUpdater: waypoints_cb starting')
         self._base_waypoints = waypoints.waypoints
         self.n_base_wps = len(self._base_waypoints)
 
@@ -351,7 +353,7 @@ class WaypointUpdater(object):
         curr_x = curr_pose.position.x
         curr_y = curr_pose.position.y
         curr_yaw = self.get_yaw(curr_pose.orientation)
-        # rospy.loginfo("current position (x,y) = (%s,%s)" , curr_x, curr_y)
+        # rospy.logdebug("current position (x,y) = (%s,%s)" , curr_x, curr_y)
 
         # Find the nearest waypoint
         nearest_dist = 9999
@@ -393,7 +395,7 @@ class WaypointUpdater(object):
         # Get the current x, y positions
         cur_x = cur.position.x
         cur_y = cur.position.y
-        # rospy.loginfo("current position (x,y) = (%s,%s)" , cur_x, cur_y)
+        # rospy.logdebug("current position (x,y) = (%s,%s)" , cur_x, cur_y)
 
         # Get number of waypoints on the map
         nWp = len(base)
@@ -439,7 +441,7 @@ class WaypointUpdater(object):
         q_y = cur.orientation.y
         q_z = cur.orientation.z
         roll = self.quaternion_to_euler_angle(q_w,q_x,q_y,q_z)
-        #rospy.loginfo("roll = %s" , roll )
+        #rospy.logdebug("roll = %s" , roll )
 
         # Project the car forward
         new_x, new_y = self.project_fwd( cur_x, cur_y, roll, d_move )
@@ -560,7 +562,7 @@ class WaypointUpdater(object):
 
     def traffic_cb(self, msg):
         self.red_light_wp = msg.data
-        # rospy.loginfo("waypoint_updater:traffic_cb says there is a red light at waypoint %s" , self.red_light_wp )
+        # rospy.logdebug("waypoint_updater:traffic_cb says there is a red light at waypoint %s" , self.red_light_wp )
 
     def obstacle_cb(self, msg):
         # TODO: Callback for /obstacle_waypoint message. We will implement it later

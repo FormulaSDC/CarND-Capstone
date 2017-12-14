@@ -73,7 +73,7 @@ class Controller(object):
                 brake = 10.
             throttle = 0.0
 
-        rospy.loginfo("throttle : %s %s %s %s", throttle, acc, cur_linear, brake)
+        # rospy.logdebug("throttle : %s %s %s %s", throttle, acc, cur_linear, brake)
 
         # Return throttle, brake, steer
         return throttle, brake, steer

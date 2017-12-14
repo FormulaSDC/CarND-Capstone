@@ -27,7 +27,8 @@ The traffic light detection has been realized by implementing a Cascade Classifi
 
 ### Results 
 
-Car was able to successfully complete track lap while meeting all the objectives. Here is a video demonstration on simulator track:
+Car was able to successfully complete track lap while meeting all the objectives. Here is a video demonstration on simulator track: 
+
 [![Simulator](http://img.youtube.com/vi/9MybAoVeOkI/0.jpg)](http://www.youtube.com/watch?v=9MybAoVeOkI "Simulator")
 
 The results are presented in the following image samples from the simulator track. The bounding boxes show the detected colors:

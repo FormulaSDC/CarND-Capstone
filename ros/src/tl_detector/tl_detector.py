@@ -15,7 +15,7 @@ import numpy as np
 
 MIN_DIST_TL = 200.  # Traffic lights farther than this distance are ignored
 STATE_COUNT_THRESHOLD = 3  # require at least these many detections
-DISPLAY_DETS = True  # Display detections on frames for debug
+DISPLAY_DETS = False  # Display detections on frames for debug
 SAVE_FRAMES = False
 TL_STATES = ['RED', 'YELLOW', 'GREEN', 'UNKNOWN', 'UNKNOWN']
 
@@ -161,7 +161,7 @@ class TLDetector(object):
         '''
         if state == TrafficLight.UNKNOWN:
             self.unknown_count = self.unknown_count + 1
-            if (self.unknown_count <= 3):
+            if (self.unknown_count <= STATE_COUNT_THRESHOLD):
                 return
         else:
             self.unknown_count = 0
@@ -247,17 +247,16 @@ class TLDetector(object):
         img = cv2.resize(image, (640, 480))
         gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
         
-        detection_res = \
-            self.cascade.detectMultiScale2(gray, 1.2, 1, 0, (16, 32), (100, 200))
+        detected = \
+            self.cascade.detectMultiScale(gray, 1.2, 1, 0, (16, 32), (100, 200))
 
-        detected = detection_res[0]
 
         img_out = img.copy() if DISPLAY_DETS else None
         colors_hist = np.zeros(TrafficLight.UNKNOWN+1, dtype=int)
 
-        for result in detected:
-            p0 = (result[0], result[1])
-            p1 = (p0[0] + result[2], p0[1] + result[3])
+        for (x,y,w,h) in detected:
+            p0 = (x, y)
+            p1 = (x+w, y+h)
             tl_image = cv2.resize(img[p0[1]:p1[1], p0[0]:p1[0], :], (16, 32))
             tl_color = self.light_classifier.get_classification(tl_image)
             if DISPLAY_DETS:

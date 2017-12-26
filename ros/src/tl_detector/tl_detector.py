@@ -15,7 +15,7 @@ import numpy as np
 
 MIN_DIST_TL = 200.  # Traffic lights farther than this distance are ignored
 STATE_COUNT_THRESHOLD = 3  # require at least these many detections
-DISPLAY_DETS = False  # Display detections on frames for debug
+DISPLAY_DETS = True  # Display detections on frames for debug
 SAVE_FRAMES = False
 TL_STATES = ['RED', 'YELLOW', 'GREEN', 'UNKNOWN', 'UNKNOWN']
 
@@ -50,6 +50,7 @@ class TLDetector(object):
         self.last_state = TrafficLight.UNKNOWN
         self.last_wp = -1
         self.state_count = 0
+        self.unknown_count = 0
 
         self.cascade_name = 'cNewBag16x32LBPw30d2_3.xml'
         self.cascade = cv2.CascadeClassifier(self.cascade_name)
@@ -158,6 +159,13 @@ class TLDetector(object):
         of times till we start using it. Otherwise the previous stable state is
         used.
         '''
+        if state == TrafficLight.UNKNOWN:
+            self.unknown_count = self.unknown_count + 1
+            if (self.unknown_count <= 3):
+                return
+        else:
+            self.unknown_count = 0
+        
         # treat yellow as red for stopping purposes
         if state == TrafficLight.YELLOW:
             state = TrafficLight.RED
